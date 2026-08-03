@@ -1,0 +1,442 @@
+openapi: 3.1.0
+info:
+  title: GIS Agent Platform API
+  version: 0.1.0
+  description: Spring Boot 后端与 Vue 前端的唯一接口契约。所有业务接口统一使用 ApiResponse 包装，异步 AI 任务统一使用 TaskStatus。
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: Dashboard
+  - name: Projects
+  - name: Agents
+  - name: Knowledge
+  - name: Proposals
+  - name: Settings
+  - name: Users
+  - name: Roles
+  - name: Solutions
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200': { description: 登录成功, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/LoginResult' } } }] } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/me:
+    get:
+      tags: [Auth]
+      operationId: getCurrentUser
+      responses:
+        '200': { description: 当前用户、角色与权限, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/UserProfile' } } }] } } } }
+  /dashboard/summary:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboardSummary
+      responses:
+        '200': { description: 总览统计, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/DashboardSummary' } } }] } } } }
+  /projects:
+    get:
+      tags: [Projects]
+      operationId: listProjects
+      parameters:
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: stage, in: query, schema: { $ref: '#/components/schemas/ProjectStage' } }
+      responses:
+        '200': { description: 项目列表, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/ProjectSummary' } } } }] } } } }
+    post:
+      tags: [Projects]
+      operationId: createProject
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ProjectUpsertRequest' } } } }
+      responses:
+        '201': { description: 项目已创建, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/ProjectDetail' } } }] } } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /projects/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Projects]
+      operationId: getProject
+      responses:
+        '200': { description: 项目详情, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/ProjectDetail' } } }] } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Projects]
+      operationId: updateProject
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ProjectUpsertRequest' } } } }
+      responses:
+        '200': { description: 项目已更新, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/ProjectDetail' } } }] } } } }
+  /projects/{projectId}/requirement-analysis:
+    parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+    post:
+      tags: [Agents]
+      operationId: runRequirementAnalysis
+      responses:
+        '202': { description: 分析任务已创建或返回最新结果, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/RequirementAnalysis' } } }] } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /projects/{projectId}/product-matches:
+    parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+    post:
+      tags: [Agents]
+      operationId: runProductMatch
+      responses:
+        '200': { description: 产品匹配结果, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/ProductMatch' } } } }] } } } }
+  /projects/{projectId}/retrievals:
+    parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+    post:
+      tags: [Knowledge]
+      operationId: createRetrieval
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RetrievalRequest' } } } }
+      responses:
+        '200': { description: 检索结果, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/RetrievalResult' } } }] } } } }
+        '502': { $ref: '#/components/responses/UpstreamError' }
+  /projects/{projectId}/proposals:
+    parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+    post:
+      tags: [Proposals]
+      operationId: generateProposal
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/GenerateProposalRequest' } } } }
+      responses:
+        '202': { description: 方案生成任务, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/ProposalDocument' } } }] } } } }
+  /proposals/{proposalId}/exports:
+    post:
+      tags: [Proposals]
+      operationId: createProposalExport
+      parameters: [{ name: proposalId, in: path, required: true, schema: { type: string } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [format], properties: { format: { type: string, enum: [DOCX, PPTX, PDF] } } } } } }
+      responses:
+        '202': { description: 导出任务已创建, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/ExportTask' } } }] } } } }
+  /knowledge-bases:
+    get:
+      tags: [Knowledge]
+      operationId: listKnowledgeBases
+      responses:
+        '200': { description: RAGFlow Dataset 映射列表, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/KnowledgeBase' } } } }] } } } }
+  /knowledge-bases/{knowledgeBaseId}/documents:
+    post:
+      tags: [Knowledge]
+      operationId: uploadKnowledgeDocument
+      parameters: [{ name: knowledgeBaseId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, metadata]
+              properties:
+                file: { type: string, format: binary }
+                metadata: { type: string, description: JSON 字符串，字段遵循 KnowledgeMetadata }
+      responses:
+        '202': { description: 上传成功并创建解析任务, content: { application/json: { schema: { $ref: '#/components/schemas/ApiResponse' } } } }
+  /model-configs:
+    get:
+      tags: [Settings]
+      operationId: listModelConfigs
+      responses:
+        '200': { description: 模型与中台配置, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/ModelConfig' } } } }] } } } }
+  /users:
+    get:
+      tags: [Users]
+      operationId: listUsers
+      parameters:
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/UserStatus' } }
+        - { name: roleCode, in: query, schema: { $ref: '#/components/schemas/RoleCode' } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: 用户分页列表, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/UserPage' } } }] } } } }
+    post:
+      tags: [Users]
+      operationId: createUser
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateUserRequest' } } } }
+      responses:
+        '201': { description: 用户已创建, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/SystemUser' } } }] } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /users/{userId}:
+    parameters: [{ name: userId, in: path, required: true, schema: { type: string, format: uuid } }]
+    get:
+      tags: [Users]
+      operationId: getUser
+      responses:
+        '200': { description: 用户详情, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/SystemUser' } } }] } } } }
+    put:
+      tags: [Users]
+      operationId: updateUser
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateUserRequest' } } } }
+      responses:
+        '200': { description: 用户已更新, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/SystemUser' } } }] } } } }
+  /users/{userId}/status:
+    patch:
+      tags: [Users]
+      operationId: updateUserStatus
+      parameters: [{ name: userId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [status], properties: { status: { $ref: '#/components/schemas/UserStatus' } } } } } }
+      responses:
+        '200': { description: 状态已更新, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/SystemUser' } } }] } } } }
+  /users/{userId}/roles:
+    put:
+      tags: [Users]
+      operationId: assignUserRoles
+      parameters: [{ name: userId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [roleCodes], properties: { roleCodes: { type: array, minItems: 1, uniqueItems: true, items: { $ref: '#/components/schemas/RoleCode' } } } } } } }
+      responses:
+        '200': { description: 角色已分配, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/SystemUser' } } }] } } } }
+  /users/{userId}/reset-password:
+    post:
+      tags: [Users]
+      operationId: resetUserPassword
+      parameters: [{ name: userId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [newPassword], properties: { newPassword: { type: string, minLength: 8, maxLength: 72 } } } } } }
+      responses:
+        '200': { description: 密码已重置, content: { application/json: { schema: { $ref: '#/components/schemas/ApiResponse' } } } }
+  /roles:
+    get:
+      tags: [Roles]
+      operationId: listRoles
+      responses:
+        '200': { description: 角色列表, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/RoleSummary' } } } }] } } } }
+  /permissions:
+    get:
+      tags: [Roles]
+      operationId: listPermissions
+      responses:
+        '200': { description: 权限字典, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/PermissionItem' } } } }] } } } }
+  /projects/{projectId}/solution-runs:
+    post:
+      tags: [Solutions]
+      operationId: startSolutionGeneration
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SolutionGenerationRequest' } } } }
+      responses:
+        '202': { description: RAGFlow 联合生成任务已创建, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/SolutionGenerationRun' } } }] } } } }
+  /solution-runs/{runId}:
+    get:
+      tags: [Solutions]
+      operationId: getSolutionGenerationRun
+      parameters: [{ name: runId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: 生成任务、章节来源与引用, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/SolutionGenerationRun' } } }] } } } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    ProjectId: { name: projectId, in: path, required: true, schema: { type: string } }
+  responses:
+    Unauthorized: { description: 未登录或令牌失效, content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } } }
+    NotFound: { description: 资源不存在, content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } } }
+    Conflict: { description: 同类任务正在运行, content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } } }
+    ValidationError: { description: 字段校验失败, content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } } }
+    UpstreamError: { description: RAGFlow 或大模型服务异常, content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } } }
+  schemas:
+    ApiResponse:
+      type: object
+      required: [code, message, requestId, timestamp, data]
+      properties:
+        code: { type: string, enum: [OK, VALIDATION_ERROR, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, UPSTREAM_ERROR, INTERNAL_ERROR] }
+        message: { type: string }
+        requestId: { type: string }
+        timestamp: { type: string, format: date-time }
+        data: {}
+    ApiError:
+      type: object
+      required: [code, message, requestId, timestamp]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        requestId: { type: string }
+        timestamp: { type: string, format: date-time }
+        fieldErrors: { type: object, additionalProperties: { type: string } }
+    LoginRequest:
+      type: object
+      required: [account, password]
+      properties: { account: { type: string }, password: { type: string, minLength: 6 } }
+    LoginResult:
+      type: object
+      required: [accessToken, tokenType, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        tokenType: { type: string, enum: [Bearer] }
+        expiresIn: { type: integer }
+        user: { $ref: '#/components/schemas/UserProfile' }
+    UserProfile:
+      type: object
+      required: [id, username, displayName, email, role, roleCodes, permissions]
+      properties: { id: { type: string }, username: { type: string }, displayName: { type: string }, email: { type: string }, role: { $ref: '#/components/schemas/RoleCode' }, roleCodes: { type: array, items: { $ref: '#/components/schemas/RoleCode' } }, permissions: { type: array, items: { type: string } } }
+    RoleCode: { type: string, enum: [ADMIN, CONSULTANT, REVIEWER] }
+    UserStatus: { type: string, enum: [ACTIVE, DISABLED, LOCKED] }
+    SystemUser:
+      type: object
+      required: [id, username, displayName, email, status, roleCodes, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        displayName: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        department: { type: string }
+        status: { $ref: '#/components/schemas/UserStatus' }
+        roleCodes: { type: array, items: { $ref: '#/components/schemas/RoleCode' } }
+        lastLoginAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    UserPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/SystemUser' } }, page: { type: integer }, pageSize: { type: integer }, total: { type: integer } }
+    CreateUserRequest:
+      type: object
+      required: [username, displayName, email, password, roleCodes]
+      properties: { username: { type: string, minLength: 3, maxLength: 50 }, displayName: { type: string, maxLength: 100 }, email: { type: string, format: email }, phone: { type: string }, department: { type: string }, password: { type: string, minLength: 8, maxLength: 72 }, roleCodes: { type: array, minItems: 1, items: { $ref: '#/components/schemas/RoleCode' } } }
+    UpdateUserRequest:
+      type: object
+      required: [displayName, email]
+      properties: { displayName: { type: string, maxLength: 100 }, email: { type: string, format: email }, phone: { type: string }, department: { type: string } }
+    RoleSummary:
+      type: object
+      required: [id, code, name, description, builtIn, userCount, permissionCodes]
+      properties: { id: { type: string, format: uuid }, code: { $ref: '#/components/schemas/RoleCode' }, name: { type: string }, description: { type: string }, builtIn: { type: boolean }, userCount: { type: integer }, permissionCodes: { type: array, items: { type: string } } }
+    PermissionItem:
+      type: object
+      required: [code, name, module, description]
+      properties: { code: { type: string }, name: { type: string }, module: { type: string }, description: { type: string } }
+    SolutionGenerationRequest:
+      type: object
+      required: [knowledgeBaseIds, groundingPolicy, allowModelSupplement, outputFormats]
+      properties:
+        knowledgeBaseIds: { type: array, minItems: 1, uniqueItems: true, items: { type: string } }
+        ragflowAssistantId: { type: string }
+        groundingPolicy: { type: string, enum: [BALANCED, STRICT, CREATIVE] }
+        allowModelSupplement: { type: boolean }
+        outputFormats: { type: array, items: { type: string, enum: [DOCX, PPTX, PDF] } }
+    SolutionGenerationRun:
+      type: object
+      required: [id, projectId, status, stage, evidenceCoverage, sections, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        stage: { type: string, enum: [PLANNING, GENERATING, REVIEWING, COMPLETED] }
+        ragflowSessionId: { type: string }
+        modelName: { type: string }
+        evidenceCoverage: { type: number, minimum: 0, maximum: 1 }
+        sections:
+          type: array
+          items:
+            type: object
+            required: [id, title, content, sourceType, evidenceCoverage, citationIds]
+            properties:
+              id: { type: string }
+              title: { type: string }
+              content: { type: string }
+              sourceType: { type: string, enum: [KNOWLEDGE_BASE, MODEL_GENERATED, HYBRID, PENDING_CONFIRMATION] }
+              evidenceCoverage: { type: number, minimum: 0, maximum: 1 }
+              citationIds: { type: array, items: { type: string } }
+              confirmationReason: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ProjectStage: { type: string, enum: [DRAFT, REQUIREMENT_ANALYSIS, PRODUCT_MATCH, KNOWLEDGE_RETRIEVAL, PROPOSAL_GENERATION, REVIEW, DELIVERED] }
+    TaskStatus: { type: string, enum: [PENDING, RUNNING, SUCCEEDED, FAILED, CANCELLED] }
+    ProjectSummary:
+      type: object
+      required: [id, name, customerName, industry, stage, progress, ownerName, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        customerName: { type: string }
+        industry: { type: string }
+        stage: { $ref: '#/components/schemas/ProjectStage' }
+        progress: { type: integer, minimum: 0, maximum: 100 }
+        ownerName: { type: string }
+        updatedAt: { type: string, format: date-time }
+    ProjectDetail:
+      allOf:
+        - $ref: '#/components/schemas/ProjectSummary'
+        - type: object
+          required: [projectCode, region, background, rawDemand, goals, deliveryDeadline, knowledgeBaseIds, collaboratorNames]
+          properties:
+            projectCode: { type: string }
+            region: { type: string }
+            background: { type: string }
+            rawDemand: { type: string }
+            goals: { type: array, items: { type: string } }
+            deliveryDeadline: { type: string, format: date }
+            knowledgeBaseIds: { type: array, items: { type: string } }
+            collaboratorNames: { type: array, items: { type: string } }
+    ProjectUpsertRequest:
+      type: object
+      required: [name, customerName, industry, rawDemand]
+      properties: { name: { type: string }, customerName: { type: string }, industry: { type: string }, region: { type: string }, rawDemand: { type: string }, deliveryDeadline: { type: string, format: date }, knowledgeBaseIds: { type: array, items: { type: string } } }
+    DashboardSummary:
+      type: object
+      required: [projectCount, requirementTaskCount, proposalCount, knowledgeChunkCount, runningAgentCount, systemStatus, projects]
+      properties:
+        projectCount: { type: integer }
+        requirementTaskCount: { type: integer }
+        proposalCount: { type: integer }
+        knowledgeChunkCount: { type: integer }
+        runningAgentCount: { type: integer }
+        systemStatus: { type: string, enum: [HEALTHY, DEGRADED] }
+        projects: { type: array, items: { $ref: '#/components/schemas/ProjectSummary' } }
+    RequirementAnalysis:
+      type: object
+      required: [taskId, status, completion, demandPoints, summary, dimensions, recommendedProductNames]
+      properties:
+        taskId: { type: string }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        completion: { type: integer }
+        demandPoints: { type: array, items: { type: string } }
+        summary: { type: string }
+        dimensions: { type: array, items: { type: object, required: [name, score, description], properties: { name: { type: string }, score: { type: integer }, description: { type: string } } } }
+        recommendedProductNames: { type: array, items: { type: string } }
+    ProductMatch:
+      type: object
+      required: [productId, productName, productFamily, matchScore, matchedCapabilities, gaps, recommended]
+      properties: { productId: { type: string }, productName: { type: string }, productFamily: { type: string }, matchScore: { type: integer }, matchedCapabilities: { type: array, items: { type: string } }, gaps: { type: array, items: { type: string } }, recommended: { type: boolean } }
+    RetrievalRequest:
+      type: object
+      required: [query, knowledgeBaseIds, topK, similarityThreshold]
+      properties: { query: { type: string, minLength: 8 }, knowledgeBaseIds: { type: array, minItems: 1, items: { type: string } }, topK: { type: integer, minimum: 1, maximum: 20 }, similarityThreshold: { type: number, minimum: 0, maximum: 1 }, metadataFilters: { type: object, additionalProperties: true } }
+    RetrievalResult:
+      type: object
+      required: [taskId, status, query, durationMs, hits]
+      properties:
+        taskId: { type: string }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        query: { type: string }
+        durationMs: { type: integer }
+        hits: { type: array, items: { $ref: '#/components/schemas/RetrievalHit' } }
+    RetrievalHit:
+      type: object
+      required: [id, knowledgeBaseId, knowledgeBaseName, documentId, documentName, chunkId, content, score, metadata]
+      properties: { id: { type: string }, knowledgeBaseId: { type: string }, knowledgeBaseName: { type: string }, documentId: { type: string }, documentName: { type: string }, chunkId: { type: string }, content: { type: string }, score: { type: number }, pageNumber: { type: integer }, metadata: { type: object, additionalProperties: { type: string } } }
+    GenerateProposalRequest:
+      type: object
+      required: [retrievalTaskId, templateKnowledgeBaseId, tone, outputFormats]
+      properties: { retrievalTaskId: { type: string }, templateKnowledgeBaseId: { type: string }, tone: { type: string, enum: [GOVERNMENT_FORMAL, BUSINESS, TECHNICAL] }, outputFormats: { type: array, items: { type: string, enum: [DOCX, PPTX, PDF] } } }
+    ProposalDocument:
+      type: object
+      required: [id, projectId, title, version, status, sections, coverImageUrl, updatedAt]
+      properties: { id: { type: string }, projectId: { type: string }, title: { type: string }, version: { type: integer }, status: { $ref: '#/components/schemas/TaskStatus' }, sections: { type: array, items: { type: object, required: [id, title, level, status, content, citationIds], properties: { id: { type: string }, title: { type: string }, level: { type: integer }, status: { type: string, enum: [EMPTY, GENERATED, EDITED] }, content: { type: string }, citationIds: { type: array, items: { type: string } } } } }, coverImageUrl: { type: string }, updatedAt: { type: string, format: date-time } }
+    ExportTask:
+      type: object
+      required: [taskId, status]
+      properties: { taskId: { type: string }, status: { $ref: '#/components/schemas/TaskStatus' }, downloadUrl: { type: string }, expiresAt: { type: string, format: date-time } }
+    KnowledgeBase:
+      type: object
+      required: [id, name, knowledgeType, description, documentCount, chunkCount, embeddingModel, chunkMethod, status, updatedAt]
+      properties: { id: { type: string }, name: { type: string }, knowledgeType: { type: string, enum: [PRODUCT_TECH, INDUSTRY_SOLUTION, PROJECT_CASE, TROUBLESHOOTING, TEMPLATE] }, description: { type: string }, documentCount: { type: integer }, chunkCount: { type: integer }, embeddingModel: { type: string }, chunkMethod: { type: string }, status: { type: string, enum: [READY, PARSING, ERROR] }, updatedAt: { type: string, format: date-time } }
+    ModelConfig:
+      type: object
+      required: [provider, displayName, baseUrl, modelName, status]
+      properties: { provider: { type: string, enum: [DEEPSEEK, RAGFLOW, BGE_M3] }, displayName: { type: string }, baseUrl: { type: string }, modelName: { type: string }, maskedApiKey: { type: string }, status: { type: string, enum: [HEALTHY, UNAVAILABLE, UNCONFIGURED] }, lastCheckedAt: { type: string, format: date-time } }

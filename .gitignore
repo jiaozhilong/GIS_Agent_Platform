@@ -1,0 +1,11 @@
+node_modules/
+dist/
+backend/target/
+backend/src/main/resources/application-local.yml
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.log
+.env.local
+design-qa-artifacts/

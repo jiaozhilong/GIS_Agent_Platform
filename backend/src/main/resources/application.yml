@@ -1,0 +1,57 @@
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+spring:
+  application:
+    name: gis-agent-platform-backend
+  datasource:
+    url: ${GIS_AGENT_DB_URL:jdbc:postgresql://localhost:5432/gis_agent_platform}
+    username: ${GIS_AGENT_DB_USERNAME:postgres}
+    password: ${GIS_AGENT_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 12
+      minimum-idle: 2
+      connection-timeout: 10000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: Asia/Shanghai
+        format_sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: Asia/Shanghai
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+security:
+  jwt:
+    secret: ${GIS_AGENT_JWT_SECRET:}
+    expiration-seconds: ${GIS_AGENT_JWT_EXPIRATION:7200}
+
+integration:
+  ragflow:
+    base-url: ${RAGFLOW_BASE_URL:http://localhost:9380}
+    api-key: ${RAGFLOW_API_KEY:}
+    default-assistant-id: ${RAGFLOW_ASSISTANT_ID:}
+    timeout-seconds: ${RAGFLOW_TIMEOUT_SECONDS:180}
+
+platform:
+  bootstrap:
+    admin-password: ${GIS_AGENT_ADMIN_PASSWORD:}
+
+logging:
+  level:
+    root: INFO
+    com.jiaozhilong.gisagent: INFO
