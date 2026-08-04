@@ -54,7 +54,7 @@ public class SolutionGenerationService {
     }
 
     SolutionDtos.GenerationRunResponse response(SolutionRunEntity run) {
-        var sections = run.getSections().stream().map(section -> new SolutionDtos.SectionResponse(
+        var sections = run.getSections().stream().distinct().map(section -> new SolutionDtos.SectionResponse(
                 section.getId().toString(), section.getTitle(), section.getContent(), section.getSourceType(),
                 section.getEvidenceCoverage().doubleValue(), section.getCitations().stream()
                 .map(citation -> citation.getRagflowChunkId() != null ? citation.getRagflowChunkId() : citation.getId().toString()).toList(),
