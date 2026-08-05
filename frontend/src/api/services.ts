@@ -1,8 +1,9 @@
 import { apiRequest } from './client'
-import type { AssignUserRolesRequest, CreateUserRequest, DashboardSummary, GenerateProposalRequest, KnowledgeBase, LoginRequest, LoginResult, ModelConfig, PageResponse, PermissionItem, ProductMatch, ProjectDetail, ProjectSummary, ProposalDocument, RequirementAnalysis, ResetPasswordRequest, RetrievalRequest, RetrievalResult, RoleSummary, SolutionGenerationRequest, SolutionGenerationRun, SystemUser, UpdateUserRequest, UpdateUserStatusRequest } from './contracts'
+import type { AssignUserRolesRequest, CreateUserRequest, DashboardSummary, GenerateProposalRequest, KnowledgeBase, LoginRequest, LoginResult, ModelConfig, PageResponse, PermissionItem, ProductMatch, ProjectDetail, ProjectSummary, ProposalDocument, RegisterRequest, RequirementAnalysis, ResetPasswordRequest, RetrievalRequest, RetrievalResult, RoleSummary, SolutionGenerationRequest, SolutionGenerationRun, SystemUser, UpdateUserRequest, UpdateUserStatusRequest } from './contracts'
 
 export const api = {
   login: (body: LoginRequest) => apiRequest<LoginResult>('POST', '/auth/login', body),
+  register: (body: RegisterRequest) => apiRequest<LoginResult>('POST', '/auth/register', body),
   me: () => apiRequest<LoginResult['user']>('GET', '/auth/me'),
   dashboard: () => apiRequest<DashboardSummary>('GET', '/dashboard/summary'),
   projects: () => apiRequest<ProjectSummary[]>('GET', '/projects'),

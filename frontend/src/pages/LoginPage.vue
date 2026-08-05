@@ -2,14 +2,20 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { gsap } from 'gsap'
-import { IconAt, IconDatabase, IconEye, IconEyeOff, IconLock, IconRoute, IconShieldCheck, IconSparkles } from '@tabler/icons-vue'
+import { IconAt, IconDatabase, IconEye, IconEyeOff, IconLock, IconRoute, IconShieldCheck, IconSparkles, IconUser } from '@tabler/icons-vue'
 import LoginEnergyCanvas from '@/components/scene/LoginEnergyCanvas.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const auth = useAuthStore()
-const account = ref('admin@gis-agent.local')
+const mode = ref<'login' | 'register'>('login')
+const account = ref('admin')
 const password = ref('')
+const registerUsername = ref('')
+const registerDisplayName = ref('')
+const registerEmail = ref('')
+const registerPassword = ref('')
+const confirmPassword = ref('')
 const visible = ref(false)
 const remember = ref(true)
 const page = ref<HTMLElement | null>(null)
@@ -73,7 +79,27 @@ onMounted(() => {
 })
 
 onUnmounted(() => motion?.revert())
-const submit = async () => { if (await auth.login(account.value, password.value)) router.push('/dashboard') }
+const switchMode = (nextMode: 'login' | 'register') => {
+  mode.value = nextMode
+  auth.error = ''
+}
+const submit = async () => {
+  if (mode.value === 'login') {
+    if (await auth.login(account.value, password.value)) router.push('/dashboard')
+    return
+  }
+  if (registerPassword.value !== confirmPassword.value) {
+    auth.error = '两次输入的密码不一致'
+    return
+  }
+  const ok = await auth.register({
+    username: registerUsername.value,
+    displayName: registerDisplayName.value,
+    email: registerEmail.value,
+    password: registerPassword.value,
+  })
+  if (ok) router.push('/dashboard')
+}
 </script>
 <template>
   <main ref="page" class="login-page">
@@ -91,18 +117,33 @@ const submit = async () => { if (await auth.login(account.value, password.value)
     </section>
     <section class="login-card">
       <div class="card-cap"><span /><span /></div>
-      <h2>用户登录</h2><p>欢迎回到 GIS Agent Platform</p>
-      <div class="tabs"><button class="active">账号登录</button><button>SSO登录</button></div>
+      <h2>{{ mode === 'login' ? '用户登录' : '用户注册' }}</h2><p>{{ mode === 'login' ? '欢迎回到 GIS Agent Platform' : '创建普通用户账号' }}</p>
+      <div class="tabs">
+        <button type="button" :class="{ active: mode === 'login' }" @click="switchMode('login')">账号登录</button>
+        <button type="button" :class="{ active: mode === 'register' }" @click="switchMode('register')">用户注册</button>
+      </div>
       <form @submit.prevent="submit">
-        <label><IconAt :size="17" /><input v-model="account" autocomplete="username" placeholder="请输入用户账号" /></label>
-        <label><IconLock :size="17" /><input v-model="password" :type="visible ? 'text' : 'password'" autocomplete="current-password" placeholder="请输入登录密码" /><button type="button" class="eye" @click="visible = !visible"><IconEyeOff v-if="visible" :size="16" /><IconEye v-else :size="16" /></button></label>
-        <div class="form-options"><label class="remember"><input v-model="remember" type="checkbox" /> 记住我</label><a href="#">忘记密码？</a></div>
+        <template v-if="mode === 'login'">
+          <label><IconAt :size="17" /><input v-model="account" autocomplete="username" placeholder="请输入用户账号" /></label>
+          <label><IconLock :size="17" /><input v-model="password" :type="visible ? 'text' : 'password'" autocomplete="current-password" placeholder="请输入登录密码" /><button type="button" class="eye" @click="visible = !visible"><IconEyeOff v-if="visible" :size="16" /><IconEye v-else :size="16" /></button></label>
+          <div class="form-options"><label class="remember"><input v-model="remember" type="checkbox" /> 记住我</label><a href="#">忘记密码？</a></div>
+        </template>
+        <template v-else>
+          <label><IconUser :size="17" /><input v-model="registerDisplayName" autocomplete="name" placeholder="请输入姓名" /></label>
+          <label><IconAt :size="17" /><input v-model="registerUsername" autocomplete="username" placeholder="请输入账号" /></label>
+          <label><IconAt :size="17" /><input v-model="registerEmail" autocomplete="email" placeholder="请输入邮箱" /></label>
+          <label><IconLock :size="17" /><input v-model="registerPassword" :type="visible ? 'text' : 'password'" autocomplete="new-password" placeholder="请输入密码，至少8位" /><button type="button" class="eye" @click="visible = !visible"><IconEyeOff v-if="visible" :size="16" /><IconEye v-else :size="16" /></button></label>
+          <label><IconLock :size="17" /><input v-model="confirmPassword" :type="visible ? 'text' : 'password'" autocomplete="new-password" placeholder="请再次输入密码" /></label>
+        </template>
         <p v-if="auth.error" class="login-error">{{ auth.error }}</p>
-        <button class="login-button" :disabled="auth.loading">{{ auth.loading ? '正在验证...' : '登录' }}</button>
+        <button class="login-button" :disabled="auth.loading">{{ auth.loading ? '正在处理...' : mode === 'login' ? '登录' : '注册并进入' }}</button>
       </form>
-      <div class="divider"><span>或</span></div>
-      <button class="enterprise"><IconShieldCheck :size="17" /> 使用企业微信登录</button>
-      <small class="signup">没有账号？ <a href="#">立即注册</a></small>
+      <template v-if="mode === 'login'">
+        <div class="divider"><span>或</span></div>
+        <button class="enterprise"><IconShieldCheck :size="17" /> 使用企业微信登录</button>
+        <small class="signup">没有账号？ <a href="#" @click.prevent="switchMode('register')">立即注册</a></small>
+      </template>
+      <small v-else class="signup">已有账号？ <a href="#" @click.prevent="switchMode('login')">返回登录</a></small>
     </section>
     <footer>© 2026 GIS Agent Platform. All rights reserved.</footer>
   </main>

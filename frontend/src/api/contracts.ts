@@ -18,13 +18,14 @@ export interface PageResponse<T> {
 export type ProjectStage = 'DRAFT' | 'REQUIREMENT_ANALYSIS' | 'PRODUCT_MATCH' | 'KNOWLEDGE_RETRIEVAL' | 'PROPOSAL_GENERATION' | 'REVIEW' | 'DELIVERED'
 export type TaskStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
 export type KnowledgeType = 'PRODUCT_TECH' | 'INDUSTRY_SOLUTION' | 'PROJECT_CASE' | 'TROUBLESHOOTING' | 'TEMPLATE'
-export type RoleCode = 'ADMIN' | 'CONSULTANT' | 'REVIEWER'
+export type RoleCode = 'ADMIN' | 'CONSULTANT' | 'REVIEWER' | 'USER'
 export type UserStatus = 'ACTIVE' | 'DISABLED' | 'LOCKED'
 export type ContentSourceType = 'KNOWLEDGE_BASE' | 'MODEL_GENERATED' | 'HYBRID' | 'PENDING_CONFIRMATION'
 export type GroundingPolicy = 'BALANCED' | 'STRICT' | 'CREATIVE'
 
 export interface UserProfile { id: string; username: string; displayName: string; email: string; role: RoleCode; roleCodes: RoleCode[]; permissions: string[] }
 export interface LoginRequest { account: string; password: string }
+export interface RegisterRequest { username: string; displayName: string; email: string; phone?: string; department?: string; password: string }
 export interface LoginResult { accessToken: string; tokenType: 'Bearer'; expiresIn: number; user: UserProfile }
 
 export interface SystemUser {

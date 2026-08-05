@@ -13,7 +13,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const projectId = computed(() => String(route.params.id || 'prj-001'))
-const roleNames = { ADMIN: '系统管理员', CONSULTANT: '解决方案顾问', REVIEWER: '方案审核员' } as const
+const roleNames = { ADMIN: '系统管理员', CONSULTANT: '解决方案顾问', REVIEWER: '方案审核员', USER: '普通用户' } as const
 const displayName = computed(() => auth.user?.displayName || auth.user?.username || '平台用户')
 const displayRole = computed(() => auth.user ? roleNames[auth.user.role] : '正在加载用户信息')
 const items = computed(() => [

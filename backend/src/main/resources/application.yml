@@ -47,10 +47,6 @@ integration:
     default-assistant-id: ${RAGFLOW_ASSISTANT_ID:}
     timeout-seconds: ${RAGFLOW_TIMEOUT_SECONDS:180}
 
-platform:
-  bootstrap:
-    admin-password: ${GIS_AGENT_ADMIN_PASSWORD:}
-
 logging:
   level:
     root: INFO

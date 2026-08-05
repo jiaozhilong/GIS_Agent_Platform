@@ -9,22 +9,34 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class JwtService {
+    private static final Logger log = LoggerFactory.getLogger(JwtService.class);
     private static final Base64.Encoder ENCODER = Base64.getUrlEncoder().withoutPadding();
     private static final Base64.Decoder DECODER = Base64.getUrlDecoder();
     private final JwtProperties properties;
     private final ObjectMapper objectMapper;
+    private final byte[] signingKey;
 
     public JwtService(JwtProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
         this.objectMapper = objectMapper;
+        if (properties.secret() == null || properties.secret().isBlank()) {
+            this.signingKey = new byte[32];
+            new SecureRandom().nextBytes(this.signingKey);
+            log.warn("GIS_AGENT_JWT_SECRET is not configured. Using an in-memory JWT key for local development.");
+        } else {
+            this.signingKey = properties.secret().getBytes(StandardCharsets.UTF_8);
+        }
     }
 
     public String create(PlatformUserPrincipal principal) {
@@ -64,7 +76,7 @@ public class JwtService {
 
     private byte[] sign(String value) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
-        mac.init(new SecretKeySpec(properties.secret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        mac.init(new SecretKeySpec(signingKey, "HmacSHA256"));
         return mac.doFinal(value.getBytes(StandardCharsets.UTF_8));
     }
 
