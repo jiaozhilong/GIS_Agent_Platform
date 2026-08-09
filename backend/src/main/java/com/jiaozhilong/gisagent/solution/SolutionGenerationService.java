@@ -5,12 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiaozhilong.gisagent.common.exception.BusinessException;
 import com.jiaozhilong.gisagent.user.UserEntity;
 import com.jiaozhilong.gisagent.user.UserRepository;
+import com.jiaozhilong.gisagent.project.ProjectService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.List;
 
 @Service
 public class SolutionGenerationService {
@@ -18,13 +20,15 @@ public class SolutionGenerationService {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher publisher;
     private final ObjectMapper objectMapper;
+    private final ProjectService projectService;
 
     public SolutionGenerationService(SolutionRunRepository repository, UserRepository userRepository,
-                                     ApplicationEventPublisher publisher, ObjectMapper objectMapper) {
+                                     ApplicationEventPublisher publisher, ObjectMapper objectMapper, ProjectService projectService) {
         this.repository = repository;
         this.userRepository = userRepository;
         this.publisher = publisher;
         this.objectMapper = objectMapper;
+        this.projectService = projectService;
     }
 
     @Transactional
@@ -42,6 +46,7 @@ public class SolutionGenerationService {
         run.setOutputFormats(json(request.outputFormats()));
         run.setRagflowAssistantId(request.ragflowAssistantId());
         repository.save(run);
+        projectService.markGenerating(projectId);
         publisher.publishEvent(new SolutionGenerationRequested(run.getId(), projectId, requester.getId(), request.ragflowAssistantId(),
                 request.knowledgeBaseIds(), request.groundingPolicy(), request.allowModelSupplement()));
         return response(run);
@@ -51,6 +56,14 @@ public class SolutionGenerationService {
     public SolutionDtos.GenerationRunResponse get(UUID id) {
         return response(repository.findDetailedById(id)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "NOT_FOUND", "方案生成任务不存在")));
+    }
+
+    @Transactional(readOnly = true)
+    public List<SolutionDtos.GenerationRunResponse> list(String projectId) {
+        List<SolutionRunEntity> runs = projectId == null || projectId.isBlank()
+                ? repository.findAllByOrderByCreatedAtDesc()
+                : repository.findByProjectIdOrderByCreatedAtDesc(projectId);
+        return runs.stream().map(this::response).toList();
     }
 
     SolutionDtos.GenerationRunResponse response(SolutionRunEntity run) {

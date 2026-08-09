@@ -4,6 +4,19 @@ import { BoxGraphics, Camera, Cartesian2, Cartesian3, Color, ColorMaterialProper
 
 const host = ref<HTMLDivElement | null>(null)
 let viewer: Viewer | undefined
+const lon = 116.39, lat = 39.91
+
+const resetCamera = () => {
+  if (!viewer || viewer.isDestroyed()) return
+  ;(viewer.camera as Camera).setView({ destination: Cartesian3.fromDegrees(lon + .025, lat - .045, 5800), orientation: { heading: CesiumMath.toRadians(340), pitch: CesiumMath.toRadians(-38), roll: 0 } })
+}
+
+const setBusinessLayersVisible = (visible: boolean) => {
+  if (!viewer || viewer.isDestroyed()) return
+  viewer.entities.values.forEach(entity => { entity.show = visible })
+}
+
+defineExpose({ resetCamera, setBusinessLayersVisible })
 
 onMounted(() => {
   if (!host.value) return
@@ -24,7 +37,6 @@ onMounted(() => {
   viewer.scene.globe.showGroundAtmosphere = false
   ;(viewer.cesiumWidget.creditContainer as HTMLElement).style.display = 'none'
 
-  const lon = 116.39, lat = 39.91
   const seed = (n: number) => Math.abs(Math.sin(n * 987.123))
   for (let i = 0; i < 110; i++) {
     const x = (seed(i + 1) - .5) * .075, y = (seed(i + 91) - .5) * .05
@@ -44,7 +56,7 @@ onMounted(() => {
     viewer.entities.add({ polyline: { positions: Cartesian3.fromDegreesArray([lon + r * .012, lat - .035, lon + r * .012, lat + .035]), width: 1.5, material: new PolylineGlowMaterialProperty({ color: Color.fromCssColorString('#18bfe8'), glowPower: .14 }) } })
   }
   viewer.entities.add({ position: Cartesian3.fromDegrees(lon, lat, 260), point: { pixelSize: 13, color: Color.CYAN, outlineColor: Color.WHITE, outlineWidth: 2 }, label: { text: '项目核心区', fillColor: Color.WHITE, font: '14px Microsoft YaHei', pixelOffset: new Cartesian2(0, -26), showBackground: true, backgroundColor: Color.fromCssColorString('#03101dcc') } })
-  ;(viewer.camera as Camera).setView({ destination: Cartesian3.fromDegrees(lon + .025, lat - .045, 5800), orientation: { heading: CesiumMath.toRadians(340), pitch: CesiumMath.toRadians(-38), roll: 0 } })
+  resetCamera()
 })
 
 onBeforeUnmount(() => { if (viewer && !viewer.isDestroyed()) viewer.destroy() })

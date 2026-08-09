@@ -8,6 +8,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -26,4 +27,10 @@ public class SolutionGenerationController {
     @GetMapping("/solution-runs/{runId}")
     @PreAuthorize("hasAuthority('proposal:view')")
     public ApiResponse<SolutionDtos.GenerationRunResponse> get(@PathVariable UUID runId) { return ApiResponse.ok(service.get(runId)); }
+
+    @GetMapping("/solution-runs")
+    @PreAuthorize("hasAuthority('proposal:view')")
+    public ApiResponse<List<SolutionDtos.GenerationRunResponse>> list(@RequestParam(required = false) String projectId) {
+        return ApiResponse.ok(service.list(projectId));
+    }
 }

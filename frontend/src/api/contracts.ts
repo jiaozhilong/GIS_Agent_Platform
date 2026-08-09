@@ -81,6 +81,19 @@ export interface ProjectDetail extends ProjectSummary {
   collaboratorNames: string[]
 }
 
+export interface ProjectUpsertRequest {
+  name: string
+  customerName: string
+  industry: string
+  region?: string
+  background?: string
+  rawDemand: string
+  goals?: string[]
+  deliveryDeadline?: string
+  knowledgeBaseIds?: string[]
+  collaboratorNames?: string[]
+}
+
 export interface DashboardSummary {
   projectCount: number
   requirementTaskCount: number
@@ -124,6 +137,10 @@ export interface KnowledgeBase {
   status: 'READY' | 'PARSING' | 'ERROR'
   updatedAt: string
 }
+
+export interface KnowledgeDocument { id: string; name: string; chunkCount: number; progress: number; status: 'PENDING' | 'PARSING' | 'READY' | 'ERROR'; createdAt: string }
+export interface CreateKnowledgeBaseRequest { name: string; description?: string; knowledgeType: KnowledgeType; chunkMethod?: string }
+export interface KnowledgeSyncResult { knowledgeBaseCount: number; documentCount: number; chunkCount: number; knowledgeBases: KnowledgeBase[] }
 
 export interface RetrievalRequest {
   query: string
@@ -187,6 +204,7 @@ export interface SolutionGenerationRun {
   sections: SolutionSectionResult[]
   createdAt: string
   updatedAt: string
+  errorMessage?: string
 }
 
 export interface ModelConfig {
@@ -197,6 +215,7 @@ export interface ModelConfig {
   maskedApiKey?: string
   status: 'HEALTHY' | 'UNAVAILABLE' | 'UNCONFIGURED'
   lastCheckedAt?: string
+  message?: string
 }
 
 export interface ApiErrorPayload { code: ApiCode; message: string; requestId: string; timestamp: string; fieldErrors?: Record<string, string> }

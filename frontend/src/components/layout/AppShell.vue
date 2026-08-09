@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { api } from '@/api/services'
 import {
   IconActivity, IconBooks, IconBrain, IconBuildingCommunity, IconDatabaseSearch,
   IconFileAnalytics, IconFolders, IconLogout, IconPresentationAnalytics, IconSettings,
@@ -12,17 +13,19 @@ defineProps<{ title?: string; subtitle?: string; projectMode?: boolean }>()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const projectId = computed(() => String(route.params.id || 'prj-001'))
+const fallbackProjectId = ref(localStorage.getItem('gis-agent-project-id') || '')
+const projectId = computed(() => String(route.params.id || fallbackProjectId.value || ''))
+const projectTo = (suffix: string) => projectId.value ? `/projects/${projectId.value}/${suffix}` : '/projects'
 const roleNames = { ADMIN: '系统管理员', CONSULTANT: '解决方案顾问', REVIEWER: '方案审核员', USER: '普通用户' } as const
 const displayName = computed(() => auth.user?.displayName || auth.user?.username || '平台用户')
 const displayRole = computed(() => auth.user ? roleNames[auth.user.role] : '正在加载用户信息')
 const items = computed(() => [
   { label: '总览看板', icon: IconActivity, to: '/dashboard', match: '/dashboard' },
   { label: '项目管理', icon: IconFolders, to: '/projects', match: '/projects' },
-  { label: '需求分析', icon: IconBrain, to: `/projects/${projectId.value}/requirements`, match: '/requirements' },
-  { label: '产品匹配', icon: IconTopologyStar3, to: `/projects/${projectId.value}/products`, match: '/products' },
-  { label: '知识检索', icon: IconDatabaseSearch, to: `/projects/${projectId.value}/retrieval`, match: '/retrieval' },
-  { label: '方案生成', icon: IconPresentationAnalytics, to: `/projects/${projectId.value}/proposal`, match: '/proposal' },
+  { label: '需求分析', icon: IconBrain, to: projectTo('requirements'), match: '/requirements' },
+  { label: '产品匹配', icon: IconTopologyStar3, to: projectTo('products'), match: '/products' },
+  { label: '知识检索', icon: IconDatabaseSearch, to: projectTo('retrieval'), match: '/retrieval' },
+  { label: '方案生成', icon: IconPresentationAnalytics, to: projectTo('proposal'), match: '/proposal' },
   { label: '知识库管理', icon: IconBooks, to: '/knowledge', match: '/knowledge' },
   { label: '生成记录', icon: IconFileAnalytics, to: '/generations', match: '/generations' },
   { label: '模型配置', icon: IconSettings, to: '/settings/models', match: '/settings/models' },
@@ -30,7 +33,13 @@ const items = computed(() => [
 ])
 const active = (match: string) => match === '/projects' ? route.path === '/projects' || /^\/projects\/[^/]+$/.test(route.path) : route.path.includes(match)
 const logout = () => { auth.logout(); router.push('/login') }
-onMounted(auth.hydrate)
+watch(() => route.params.id, (id) => { if (id) { fallbackProjectId.value = String(id); localStorage.setItem('gis-agent-project-id', String(id)) } }, { immediate: true })
+onMounted(async () => {
+  await auth.hydrate()
+  if (!fallbackProjectId.value) {
+    try { const first = (await api.projects())[0]; if (first) { fallbackProjectId.value = first.id; localStorage.setItem('gis-agent-project-id', first.id) } } catch { /* 页面接口会显示具体错误 */ }
+  }
+})
 </script>
 
 <template>

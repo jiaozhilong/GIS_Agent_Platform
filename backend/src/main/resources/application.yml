@@ -46,6 +46,8 @@ integration:
     api-key: ${RAGFLOW_API_KEY:}
     default-assistant-id: ${RAGFLOW_ASSISTANT_ID:}
     timeout-seconds: ${RAGFLOW_TIMEOUT_SECONDS:180}
+  embedding:
+    base-url: ${BGE_M3_BASE_URL:http://localhost:8001/v1}
 
 logging:
   level:

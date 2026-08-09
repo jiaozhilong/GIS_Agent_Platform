@@ -145,14 +145,14 @@ onMounted(load)
             <p>{{ role.description }}</p>
             <div class="permission-title">已授权能力 <span>{{ role.permissionCodes.length }}</span></div>
             <div class="permissions"><span v-for="permission in role.permissionCodes" :key="permission">{{ permission }}</span></div>
-            <footer><span>{{ role.builtIn ? '系统内置角色' : '自定义角色' }}</span><button class="ghost-button" :disabled="role.builtIn">配置权限</button></footer>
+            <footer><span>{{ role.builtIn ? '系统内置角色' : '自定义角色' }}</span><button class="ghost-button" :disabled="role.builtIn" :title="role.builtIn ? '系统内置角色不可编辑' : '配置角色权限'">{{ role.builtIn ? '权限已锁定' : '配置权限' }}</button></footer>
           </article>
         </div>
       </section>
 
       <Transition name="fade"><div v-if="notice" class="notice"><IconCheck :size="17" /> {{ notice }}</div></Transition>
 
-      <div v-if="dialogOpen" class="dialog-mask" @click.self="dialogOpen = false">
+      <div v-if="dialogOpen" class="dialog-mask">
         <section class="dialog tech-panel">
           <header><div><h2>{{ editing ? '编辑用户' : '新增用户' }}</h2><p>账号、组织和角色信息将同步到后端权限系统</p></div><button @click="dialogOpen = false"><IconX /></button></header>
           <div class="form-grid">

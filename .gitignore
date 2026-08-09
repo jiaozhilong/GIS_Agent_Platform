@@ -11,3 +11,4 @@ backend/src/main/resources/application-local.yml
 *.log
 .env.local
 design-qa-artifacts/
+test-artifacts/
