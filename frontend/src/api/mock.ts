@@ -100,7 +100,7 @@ export async function mockRequest<T>(method: string, path: string, body?: unknow
   if (/^\/users\/[^/]+\/reset-password$/.test(route) && method === 'POST') return ok(undefined as T)
   if (route === '/roles' && method === 'GET') return ok(roles as unknown as T)
   if (route === '/permissions' && method === 'GET') return ok(permissions as unknown as T)
-  if (path === '/dashboard/summary') return ok({ projectCount: 128, requirementTaskCount: 86, proposalCount: 42, knowledgeChunkCount: 2345, runningAgentCount: 15, systemStatus: 'HEALTHY', projects } as DashboardSummary) as ApiResponse<T>
+  if (path === '/dashboard/summary') return ok({ projectCount: 128, requirementTaskCount: 86, proposalCount: 42, knowledgeDocumentCount: 10, runningAgentCount: 15, systemStatus: 'HEALTHY', projects, stageCounts: { DRAFT: 1, REQUIREMENT_ANALYSIS: 1 }, knowledgeBases: knowledgeBases.map(item => ({ id: item.id, name: item.name, documentCount: item.documentCount, chunkCount: item.chunkCount, ready: item.status === 'READY' })) } as DashboardSummary) as ApiResponse<T>
   if (path === '/projects') return ok(projects as unknown as T)
   if (/^\/projects\/[^/]+$/.test(path)) return ok(projectDetail as unknown as T)
   if (path.endsWith('/requirement-analysis')) return ok({ taskId: 'req-001', status: 'SUCCEEDED', completion: 86, demandPoints: ['建设统一时空信息底座', '整合多源异构空间数据', '支撑国土空间规划一张图', '提供智能分析与辅助决策'], summary: '客户需要以统一空间底座为核心，打通数据治理、GIS服务、业务应用与智能分析能力。', dimensions: [{ name: '数据治理', score: 92, description: '多源空间数据汇聚与标准化' }, { name: '平台能力', score: 76, description: '二三维一体化GIS平台' }, { name: '业务应用', score: 81, description: '规划审批与专题应用' }, { name: '智能分析', score: 66, description: 'AI辅助分析和方案生成' }, { name: '开放集成', score: 70, description: '服务共享和系统对接' }], recommendedProductNames: ['SuperMap GIS Cloud', 'iServer 3D', 'iObjects X'] } as RequirementAnalysis) as ApiResponse<T>
@@ -119,9 +119,10 @@ export async function mockRequest<T>(method: string, path: string, body?: unknow
   ] } as ProposalDocument) as ApiResponse<T>
   if (path === '/knowledge-bases') return ok(knowledgeBases as unknown as T)
   if (path === '/model-configs') return ok([
-    { provider: 'RAGFLOW', displayName: 'RAGFlow 知识库', baseUrl: 'http://localhost:8088', modelName: 'RAGFlow v0.26.4', status: 'HEALTHY', lastCheckedAt: now() },
-    { provider: 'DEEPSEEK', displayName: 'DeepSeek 生成模型', baseUrl: 'https://api.deepseek.com', modelName: 'deepseek-v4-pro', maskedApiKey: 'sk-****28af', status: 'HEALTHY', lastCheckedAt: now() },
-    { provider: 'BGE_M3', displayName: 'BGE-M3 向量模型', baseUrl: 'http://host.docker.internal:8001/v1', modelName: 'text-embedding-3-large@BAAI/bge-m3', status: 'HEALTHY', lastCheckedAt: now() }
+    { provider: 'RAGFLOW', displayName: 'RAGFlow 知识库', category: 'KNOWLEDGE_ENGINE', baseUrl: 'http://localhost:8088', modelName: 'RAGFlow v0.26.4', status: 'HEALTHY', lastCheckedAt: now(), editable: false, enabled: true },
+    { provider: 'DEEPSEEK', displayName: 'RAGFlow Assistant 语言模型', category: 'KNOWLEDGE_ENGINE', baseUrl: 'https://api.deepseek.com', modelName: 'deepseek-chat', maskedApiKey: 'sk-****28af', status: 'HEALTHY', lastCheckedAt: now(), editable: false, enabled: true },
+    { provider: 'BGE_M3', displayName: 'BGE-M3 向量模型', category: 'KNOWLEDGE_ENGINE', baseUrl: 'http://host.docker.internal:8001/v1', modelName: 'BAAI/bge-m3', status: 'HEALTHY', lastCheckedAt: now(), editable: false, enabled: true },
+    { provider: 'PLATFORM_LLM', displayName: '平台方案生成模型', category: 'PLATFORM_GENERATION', baseUrl: '', modelName: '', status: 'UNCONFIGURED', lastCheckedAt: now(), editable: true, enabled: false }
   ] as ModelConfig[] as unknown as T)
   return ok({} as T)
 }

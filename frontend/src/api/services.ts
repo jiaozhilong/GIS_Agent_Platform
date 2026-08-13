@@ -1,10 +1,10 @@
-import { apiRequest, apiUpload } from './client'
+import { apiBlob, apiRequest, apiUpload, apiUploadWithFields } from './client'
 import type {
   AssignUserRolesRequest, CreateKnowledgeBaseRequest, CreateUserRequest, DashboardSummary,
-  GenerateProposalRequest, KnowledgeBase, KnowledgeDocument, KnowledgeSyncResult, LoginRequest,
-  LoginResult, ModelConfig, PageResponse, PermissionItem, ProductMatch, ProjectDetail, ProjectSummary,
+  GenerateProposalRequest, KnowledgeAsset, KnowledgeAssetDetail, KnowledgeAssetSummary, KnowledgeAssetUploadFields, KnowledgeBase, KnowledgeDocument, KnowledgeSyncResult, LoginRequest,
+  LoginResult, ModelConfig, ModelConfigUpdateRequest, PageResponse, PermissionItem, ProductCatalogItem, ProductMatch, ProjectDetail, ProjectSummary,
   ProjectUpsertRequest, ProposalDocument, RegisterRequest, RequirementAnalysis, ResetPasswordRequest,
-  RetrievalRequest, RetrievalResult, RoleSummary, SolutionGenerationRequest, SolutionGenerationRun,
+  RetrievalRequest, RetrievalResult, RetrievalEvaluationCase, RetrievalEvaluationRun, RoleSummary, SolutionGenerationRequest, SolutionGenerationRun, SolutionSectionResult,
   SystemUser, UpdateUserRequest, UpdateUserStatusRequest
 } from './contracts'
 
@@ -17,18 +17,31 @@ export const api = {
   createProject: (body: ProjectUpsertRequest) => apiRequest<ProjectDetail>('POST', '/projects', body),
   project: (id: string) => apiRequest<ProjectDetail>('GET', `/projects/${id}`),
   updateProject: (id: string, body: ProjectUpsertRequest) => apiRequest<ProjectDetail>('PUT', `/projects/${id}`, body),
+  deleteProject: (id: string) => apiRequest<void>('DELETE', `/projects/${id}`),
   analyzeRequirements: (id: string) => apiRequest<RequirementAnalysis>('POST', `/projects/${id}/requirement-analysis`),
   matchProducts: (id: string) => apiRequest<ProductMatch[]>('POST', `/projects/${id}/product-matches`),
+  productCatalog: () => apiRequest<ProductCatalogItem[]>('GET', '/product-catalog'),
   retrieve: (id: string, body: RetrievalRequest) => apiRequest<RetrievalResult>('POST', `/projects/${id}/retrievals`, body),
+  searchKnowledge: (body: RetrievalRequest) => apiRequest<RetrievalResult>('POST', '/knowledge-search', body),
   generateProposal: (id: string, body: GenerateProposalRequest) => apiRequest<ProposalDocument>('POST', `/projects/${id}/proposals`, body),
   knowledgeBases: () => apiRequest<KnowledgeBase[]>('GET', '/knowledge-bases'),
   syncKnowledgeBases: () => apiRequest<KnowledgeSyncResult>('POST', '/knowledge-bases/sync'),
   createKnowledgeBase: (body: CreateKnowledgeBaseRequest) => apiRequest<KnowledgeBase>('POST', '/knowledge-bases', body),
   knowledgeDocuments: (id: string) => apiRequest<KnowledgeDocument[]>('GET', `/knowledge-bases/${id}/documents`),
   uploadKnowledgeDocument: (id: string, file: File) => apiUpload<KnowledgeDocument[]>(`/knowledge-bases/${id}/documents`, file),
+  knowledgeAssetSummary: () => apiRequest<KnowledgeAssetSummary>('GET', '/knowledge-assets/summary'),
+  knowledgeAssets: (query = '') => apiRequest<KnowledgeAsset[]>('GET', `/knowledge-assets${query ? `?${query}` : ''}`),
+  knowledgeAsset: (id: string) => apiRequest<KnowledgeAssetDetail>('GET', `/knowledge-assets/${id}`),
+  uploadKnowledgeAsset: (file: File, fields: KnowledgeAssetUploadFields, onProgress?: (percent: number) => void) =>
+    apiUploadWithFields<KnowledgeAssetDetail>('/knowledge-assets', file, fields, onProgress),
+  retryKnowledgeAsset: (id: string) => apiRequest<KnowledgeAssetDetail>('POST', `/knowledge-assets/${id}/sync`),
+  deleteKnowledgeAsset: (id: string) => apiRequest<void>('DELETE', `/knowledge-assets/${id}`),
+  reparseKnowledgeAsset: (id: string, parserStrategy?: string) => apiRequest<KnowledgeAssetDetail>('POST', `/knowledge-assets/${id}/reparse`, { parserStrategy, parserConfig: {} }),
+  knowledgeAssetParseStatus: (id: string) => apiRequest<KnowledgeAssetDetail['parseTask']>('GET', `/knowledge-assets/${id}/parse-status`),
+  knowledgeAssetBlob: (path: string) => apiBlob(path),
   modelConfigs: () => apiRequest<ModelConfig[]>('GET', '/model-configs'),
-  testModelConfig: (provider: ModelConfig['provider']) => apiRequest<ModelConfig>('POST', `/model-configs/${provider}/test`),
-  saveModelConfig: (provider: ModelConfig['provider'], body: Pick<ModelConfig, 'baseUrl' | 'modelName'>) => apiRequest<ModelConfig>('PUT', `/model-configs/${provider}`, body),
+  testModelConfig: (provider: ModelConfig['provider'], body?: ModelConfigUpdateRequest) => apiRequest<ModelConfig>('POST', `/model-configs/${provider}/test`, body),
+  saveModelConfig: (provider: ModelConfig['provider'], body: ModelConfigUpdateRequest) => apiRequest<ModelConfig>('PUT', `/model-configs/${provider}`, body),
   users: (query = '') => apiRequest<PageResponse<SystemUser>>('GET', `/users${query ? `?${query}` : ''}`),
   createUser: (body: CreateUserRequest) => apiRequest<SystemUser>('POST', '/users', body),
   updateUser: (id: string, body: UpdateUserRequest) => apiRequest<SystemUser>('PUT', `/users/${id}`, body),
@@ -39,5 +52,15 @@ export const api = {
   permissions: () => apiRequest<PermissionItem[]>('GET', '/permissions'),
   startSolutionRun: (projectId: string, body: SolutionGenerationRequest) => apiRequest<SolutionGenerationRun>('POST', `/projects/${projectId}/solution-runs`, body),
   solutionRun: (runId: string) => apiRequest<SolutionGenerationRun>('GET', `/solution-runs/${runId}`),
-  solutionRuns: (projectId?: string) => apiRequest<SolutionGenerationRun[]>('GET', `/solution-runs${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`)
+  solutionRuns: (projectId?: string) => apiRequest<SolutionGenerationRun[]>('GET', `/solution-runs${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  updateSolutionSection: (sectionId: string, body: { title: string; content: string }) =>
+    apiRequest<SolutionSectionResult>('PATCH', `/solution-sections/${sectionId}`, body),
+  lockSolutionSection: (sectionId: string, locked: boolean) =>
+    apiRequest<SolutionSectionResult>('POST', `/solution-sections/${sectionId}/lock`, { locked }),
+  regenerateSolutionSection: (sectionId: string, additionalInstruction = '') =>
+    apiRequest<SolutionSectionResult>('POST', `/solution-sections/${sectionId}/regenerate`, { additionalInstruction }),
+  retrievalEvaluationCases: () => apiRequest<RetrievalEvaluationCase[]>('GET', '/retrieval-evaluations/cases'),
+  retrievalEvaluationRuns: () => apiRequest<RetrievalEvaluationRun[]>('GET', '/retrieval-evaluations/runs'),
+  retrievalEvaluationRun: (id: string) => apiRequest<RetrievalEvaluationRun>('GET', `/retrieval-evaluations/runs/${id}`),
+  startRetrievalEvaluation: () => apiRequest<RetrievalEvaluationRun>('POST', '/retrieval-evaluations/runs', {})
 }

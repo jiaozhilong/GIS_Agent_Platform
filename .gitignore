@@ -12,3 +12,5 @@ backend/src/main/resources/application-local.yml
 .env.local
 design-qa-artifacts/
 test-artifacts/
+data/knowledge-assets/
+docs/*.pptx

@@ -1,5 +1,6 @@
 package com.jiaozhilong.gisagent.project;
 
+import com.jiaozhilong.gisagent.knowledge.KnowledgeAssetDtos;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -45,13 +46,14 @@ public final class ProjectDtos {
                                List<String> matchedCapabilities, List<String> gaps, boolean recommended) {}
 
     public record RetrievalRequest(@NotBlank @Size(min = 4, max = 2000) String query,
-                                   @NotEmpty List<String> knowledgeBaseIds,
+                                   List<String> knowledgeBaseIds,
                                    @Min(1) @Max(20) int topK,
                                    @Min(0) @Max(1) double similarityThreshold,
                                    Map<String, Object> metadataFilters) {}
 
     public record RetrievalHit(String id, String knowledgeBaseId, String knowledgeBaseName, String documentId,
                                String documentName, String chunkId, String content, double score,
-                               Integer pageNumber, Map<String, String> metadata) {}
+                               Integer pageNumber, Map<String, String> metadata,
+                               KnowledgeAssetDtos.AssetContext assetContext) {}
     public record RetrievalResult(UUID taskId, String status, String query, long durationMs, List<RetrievalHit> hits) {}
 }

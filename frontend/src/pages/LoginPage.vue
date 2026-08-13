@@ -19,9 +19,12 @@ const confirmPassword = ref('')
 const visible = ref(false)
 const remember = ref(true)
 const page = ref<HTMLElement | null>(null)
+const sessionNotice = ref('')
 let motion: gsap.MatchMedia | undefined
 
 onMounted(() => {
+  sessionNotice.value = sessionStorage.getItem('gis-agent-session-message') || ''
+  sessionStorage.removeItem('gis-agent-session-message')
   if (!page.value) return
   motion = gsap.matchMedia()
   motion.add(
@@ -135,6 +138,7 @@ const submit = async () => {
           <label><IconLock :size="17" /><input v-model="registerPassword" :type="visible ? 'text' : 'password'" autocomplete="new-password" placeholder="请输入密码，至少8位" /><button type="button" class="eye" @click="visible = !visible"><IconEyeOff v-if="visible" :size="16" /><IconEye v-else :size="16" /></button></label>
           <label><IconLock :size="17" /><input v-model="confirmPassword" :type="visible ? 'text' : 'password'" autocomplete="new-password" placeholder="请再次输入密码" /></label>
         </template>
+        <p v-if="sessionNotice" class="session-notice">{{ sessionNotice }}</p>
         <p v-if="auth.error" class="login-error">{{ auth.error }}</p>
         <button class="login-button" :disabled="auth.loading">{{ auth.loading ? '正在处理...' : mode === 'login' ? '登录' : '注册并进入' }}</button>
       </form>
@@ -164,7 +168,7 @@ form { display: grid; gap: 12px; } form > label { height: 46px; border: 1px soli
 input { min-width: 0; flex: 1; background: transparent; border: 0; outline: 0; color: var(--text-1); }.eye { border: 0; color: var(--text-3); background: transparent; padding: 3px; }
 .form-options { display: flex; justify-content: space-between; align-items: center; color: var(--text-3); font-size: 12px; }.remember { display: flex; align-items: center; gap: 6px; }.form-options a, .signup a { color: var(--primary-2); }
 .login-button { height: 44px; border: 0; border-radius: 5px; color: white; background: linear-gradient(90deg, #1d72ea, #159dff); box-shadow: 0 10px 28px rgba(18,118,255,.25); font-weight: 650; }.login-button:disabled { opacity: .6; }
-.login-error { margin: -2px 0; color: var(--danger); font-size: 12px; }.divider { border-top: 1px solid var(--line); margin: 22px 0 17px; position: relative; }.divider span { position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%); background: #07131d; color: var(--text-3); padding: 0 8px; font-size: 11px; }
+.login-error { margin: -2px 0; color: var(--danger); font-size: 12px; }.session-notice{margin:0;padding:9px 10px;border:1px solid rgba(255,180,65,.25);border-radius:5px;color:var(--warning);background:rgba(255,180,65,.06);font-size:11px}.divider { border-top: 1px solid var(--line); margin: 22px 0 17px; position: relative; }.divider span { position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%); background: #07131d; color: var(--text-3); padding: 0 8px; font-size: 11px; }
 .enterprise { width: 100%; height: 42px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-2); background: rgba(30,62,86,.18); border: 1px solid var(--line); border-radius: 5px; }.enterprise:disabled{opacity:.5;cursor:not-allowed}.signup { display: block; text-align: center; margin-top: 16px; color: var(--text-3); }
 footer { position: absolute; left: clamp(32px, 6vw, 96px); bottom: 30px; color: rgba(138,165,184,.4); font-size: 11px; z-index: 2; }
 @media (max-width: 980px) { .hero-copy { top: 11%; width: 80%; }.hero-stats { display: none; }.login-card { right: 50%; transform: translate(50%, -20%); top: 42%; }.hero-copy p { display: none; }.hero-copy h1 { font-size: 34px; margin-top: 8px; } }

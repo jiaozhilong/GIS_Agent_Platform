@@ -34,6 +34,9 @@ public class ProjectController {
         return ApiResponse.ok(service.update(id, request));
     }
 
+    @DeleteMapping("/projects/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) @PreAuthorize("hasAuthority('project:manage')")
+    public void delete(@PathVariable String id) { service.delete(id); }
+
     @PostMapping("/projects/{id}/requirement-analysis") @PreAuthorize("hasAuthority('agent:run')")
     public ApiResponse<ProjectDtos.RequirementAnalysis> analyze(@PathVariable String id) { return ApiResponse.ok(service.analyze(id)); }
 

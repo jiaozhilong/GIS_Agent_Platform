@@ -15,9 +15,10 @@ public class ModelConfigController {
     @GetMapping @PreAuthorize("hasAuthority('model:view')")
     public ApiResponse<List<ModelConfigService.Config>> list() { return ApiResponse.ok(service.list()); }
 
-    @PostMapping("/{provider}/test") @PreAuthorize("hasAuthority('model:view')")
-    public ApiResponse<ModelConfigService.Config> test(@PathVariable ModelConfigService.Provider provider) {
-        return ApiResponse.ok(service.check(provider));
+    @PostMapping("/{provider}/test") @PreAuthorize("hasAuthority('model:manage')")
+    public ApiResponse<ModelConfigService.Config> test(@PathVariable ModelConfigService.Provider provider,
+                                                        @RequestBody(required = false) ModelConfigService.UpdateRequest request) {
+        return ApiResponse.ok(service.test(provider, request));
     }
 
     @PutMapping("/{provider}") @PreAuthorize("hasAuthority('model:manage')")

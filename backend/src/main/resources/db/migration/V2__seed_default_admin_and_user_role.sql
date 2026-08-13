@@ -14,7 +14,7 @@ SELECT
   '系统管理员',
   'admin@gis-agent.local',
   '平台管理部',
-  crypt('admin123', gen_salt('bf', 12)),
+  crypt(encode(gen_random_bytes(32), 'hex'), gen_salt('bf', 12)),
   'ACTIVE'
 WHERE NOT EXISTS (
   SELECT 1 FROM platform_users

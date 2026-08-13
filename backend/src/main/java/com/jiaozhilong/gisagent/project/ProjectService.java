@@ -4,7 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiaozhilong.gisagent.common.exception.BusinessException;
-import com.jiaozhilong.gisagent.integration.ragflow.RagflowManagementClient;
+import com.jiaozhilong.gisagent.knowledge.KnowledgeAssetService;
+import com.jiaozhilong.gisagent.knowledge.KnowledgeRetrievalService;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -30,12 +31,18 @@ public class ProjectService {
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
-    private final RagflowManagementClient ragflow;
+    private final ProductCatalogService productCatalog;
+    private final KnowledgeAssetService knowledgeAssets;
+    private final KnowledgeRetrievalService knowledgeRetrieval;
 
-    public ProjectService(JdbcTemplate jdbc, ObjectMapper objectMapper, RagflowManagementClient ragflow) {
+    public ProjectService(JdbcTemplate jdbc, ObjectMapper objectMapper,
+                          ProductCatalogService productCatalog, KnowledgeAssetService knowledgeAssets,
+                          KnowledgeRetrievalService knowledgeRetrieval) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
-        this.ragflow = ragflow;
+        this.productCatalog = productCatalog;
+        this.knowledgeAssets = knowledgeAssets;
+        this.knowledgeRetrieval = knowledgeRetrieval;
     }
 
     @Transactional(readOnly = true)
@@ -89,6 +96,14 @@ public class ProjectService {
     }
 
     @Transactional
+    public void delete(String id) {
+        UUID projectId = uuid(id);
+        if (jdbc.queryForObject("select count(*) from platform_projects where id=?", Long.class, projectId) == 0) throw notFound();
+        jdbc.update("delete from solution_generation_runs where project_id=?", id);
+        jdbc.update("delete from platform_projects where id=?", projectId);
+    }
+
+    @Transactional
     public ProjectDtos.RequirementAnalysis analyze(String id) {
         ProjectDtos.ProjectDetail project = get(id);
         String demand = project.rawDemand();
@@ -120,18 +135,12 @@ public class ProjectService {
     @Transactional
     public List<ProjectDtos.ProductMatch> matchProducts(String id) {
         ProjectDtos.ProjectDetail project = get(id);
-        List<String> datasetIds = project.knowledgeBaseIds().isEmpty()
-                ? ragflow.datasets().stream().map(RagflowManagementClient.Dataset::id).toList()
-                : project.knowledgeBaseIds();
-        RagflowManagementClient.RetrievalResult evidence = ragflow.retrieve(
-                "根据以下项目需求匹配 SuperMap GIS 产品能力：" + project.rawDemand(), datasetIds, 8, 0.2);
-        String joined = evidence.chunks().stream().map(RagflowManagementClient.RetrievalChunk::content)
+        ProjectDtos.RetrievalResult evidence = knowledgeRetrieval.search(new ProjectDtos.RetrievalRequest(
+                "根据以下项目需求匹配 SuperMap GIS 产品能力：" + project.rawDemand(), project.knowledgeBaseIds(),
+                8, 0.2, Map.of("knowledge_type", List.of("PRODUCT"))));
+        String joined = evidence.hits().stream().map(ProjectDtos.RetrievalHit::content)
                 .reduce("", (left, right) -> left + "\n" + right);
-        List<ProjectDtos.ProductMatch> result = List.of(
-                product("iserver", "SuperMap iServer", "云 GIS 平台", joined, List.of("GIS 服务发布与管理", "空间分析", "分布式处理", "云原生扩展"), 94, true),
-                product("iportal", "SuperMap iPortal", "GIS 门户", joined, List.of("资源整合与共享", "服务注册", "权限控制", "专题应用"), 89, true),
-                product("idesktopx", "SuperMap iDesktopX", "桌面 GIS", joined, List.of("空间数据生产", "制图与分析", "数据治理"), 82, true),
-                product("iobjects", "SuperMap iObjects", "组件 GIS", joined, List.of("业务系统集成", "二次开发", "空间计算"), 76, false));
+        List<ProjectDtos.ProductMatch> result = productCatalog.match(project.rawDemand(), joined);
         jdbc.update("insert into product_match_runs(project_id, result_json) values (?, ?::jsonb)", project.id(), json(result));
         advance(project.id(), ProjectDtos.Stage.PRODUCT_MATCH, 48);
         return result;
@@ -140,14 +149,7 @@ public class ProjectService {
     @Transactional
     public ProjectDtos.RetrievalResult retrieve(String id, ProjectDtos.RetrievalRequest request) {
         ProjectDtos.ProjectDetail project = get(id);
-        List<RagflowManagementClient.Dataset> datasets = ragflow.datasets();
-        Map<String, String> names = new LinkedHashMap<>();
-        datasets.forEach(item -> names.put(item.id(), item.name()));
-        RagflowManagementClient.RetrievalResult upstream = ragflow.retrieve(request.query(), request.knowledgeBaseIds(), request.topK(), request.similarityThreshold());
-        List<ProjectDtos.RetrievalHit> hits = upstream.chunks().stream().limit(request.topK()).map(item ->
-                new ProjectDtos.RetrievalHit(item.id(), item.datasetId(), names.getOrDefault(item.datasetId(), item.datasetId()),
-                        item.documentId(), item.documentName(), item.id(), item.content(), item.score(), item.pageNumber(), item.metadata())).toList();
-        ProjectDtos.RetrievalResult result = new ProjectDtos.RetrievalResult(UUID.randomUUID(), "SUCCEEDED", request.query(), upstream.durationMs(), hits);
+        ProjectDtos.RetrievalResult result = knowledgeRetrieval.search(request);
         jdbc.update("""
                 insert into retrieval_runs(id, project_id, query, knowledge_base_ids, top_k, similarity_threshold, duration_ms, result_json)
                 values (?, ?, ?, ?::jsonb, ?, ?, ?, ?::jsonb)
@@ -200,15 +202,6 @@ public class ProjectService {
         if (demand.contains("二三维") || demand.contains("三维")) result.add("SuperMap iClient3D for Cesium");
         if (demand.contains("数据") || demand.contains("治理")) result.add("SuperMap iDesktopX");
         return result;
-    }
-
-    private ProjectDtos.ProductMatch product(String id, String name, String family, String evidence,
-                                              List<String> capabilities, int baseScore, boolean recommended) {
-        List<String> matched = capabilities.stream().filter(capability -> evidence.contains(capability.substring(0, Math.min(2, capability.length())))).toList();
-        List<String> resolved = matched.isEmpty() ? capabilities.subList(0, Math.min(2, capabilities.size())) : matched;
-        int score = Math.min(98, baseScore + Math.min(4, resolved.size()));
-        List<String> gaps = recommended ? List.of("授权与部署规模需结合并发量进一步确认") : List.of("仅在存在深度二次开发需求时选配");
-        return new ProjectDtos.ProductMatch(id, name, family, score, resolved, gaps, recommended);
     }
 
     private void addIfContains(LinkedHashSet<String> target, String source, String keyword, String value) {

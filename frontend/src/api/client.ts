@@ -1,4 +1,4 @@
-import axios, { AxiosError } from 'axios'
+import axios, { AxiosError, type AxiosProgressEvent } from 'axios'
 import { mockRequest } from './mock'
 import type { ApiErrorPayload, ApiResponse } from './contracts'
 
@@ -10,6 +10,18 @@ instance.interceptors.request.use((config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`
   config.headers['X-Request-Id'] = crypto.randomUUID()
   return config
+})
+
+instance.interceptors.response.use(response => response, (error: unknown) => {
+  const axiosError = error as AxiosError<ApiErrorPayload>
+  const requestUrl = axiosError.config?.url || ''
+  if (axiosError.response?.status === 401 && !requestUrl.endsWith('/auth/login')) {
+    localStorage.removeItem('gis-agent-token')
+    localStorage.removeItem('gis-agent-user')
+    sessionStorage.setItem('gis-agent-session-message', '登录状态已失效，请重新登录后继续操作')
+    if (window.location.pathname !== '/login') window.location.replace('/login?reason=expired')
+  }
+  return Promise.reject(error)
 })
 
 export class ApiClientError extends Error {
@@ -31,6 +43,7 @@ export async function apiRequest<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | '
   if (useMocks) return (await mockRequest<T>(method, path, body)).data
   try {
     const response = await instance.request<ApiResponse<T>>({ method, url: path, data: body })
+    if (response.status === 204) return undefined as T
     return response.data.data
   } catch (error) {
     throw toClientError(error, '服务暂时不可用，请稍后重试')
@@ -46,4 +59,27 @@ export async function apiUpload<T>(path: string, file: File): Promise<T> {
   } catch (error) {
     throw toClientError(error, '文件上传失败')
   }
+}
+
+export async function apiUploadWithFields<T>(path: string, file: File, fields: object,
+                                              onProgress?: (percent: number) => void): Promise<T> {
+  const form = new FormData()
+  form.append('file', file)
+  Object.entries(fields).forEach(([key, value]) => { if (value !== undefined && value !== null) form.append(key, String(value)) })
+  try {
+    const response = await instance.post<ApiResponse<T>>(path, form, {
+      timeout: 7200000,
+      onUploadProgress: (event: AxiosProgressEvent) => {
+        if (event.total && onProgress) onProgress(Math.min(100, Math.round(event.loaded * 100 / event.total)))
+      }
+    })
+    return response.data.data
+  } catch (error) {
+    throw toClientError(error, '知识资产上传失败')
+  }
+}
+
+export async function apiBlob(path: string): Promise<Blob> {
+  try { return (await instance.get(path, { responseType: 'blob' })).data as Blob }
+  catch (error) { throw toClientError(error, '资产内容读取失败') }
 }

@@ -138,6 +138,78 @@ paths:
                 metadata: { type: string, description: JSON 字符串，字段遵循 KnowledgeMetadata }
       responses:
         '202': { description: 上传成功并创建解析任务, content: { application/json: { schema: { $ref: '#/components/schemas/ApiResponse' } } } }
+  /knowledge-search:
+    post:
+      tags: [Knowledge]
+      operationId: searchKnowledge
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RetrievalRequest' } } } }
+      responses:
+        '200': { description: 文本知识、PPT 页面来源与关联媒体, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/RetrievalResult' } } }] } } } }
+  /knowledge-assets:
+    get:
+      tags: [Knowledge]
+      operationId: listKnowledgeAssets
+      parameters:
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: type, in: query, schema: { type: string, enum: [DOCUMENT, IMAGE, VIDEO] } }
+        - { name: status, in: query, schema: { type: string, enum: [PROCESSING, READY, ERROR] } }
+      responses:
+        '200': { description: GIS 行业知识资产列表, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/KnowledgeAsset' } } } }] } } } }
+    post:
+      tags: [Knowledge]
+      operationId: uploadKnowledgeAsset
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [datasetId, file]
+              properties:
+                datasetId: { type: string }
+                title: { type: string }
+                description: { type: string }
+                industry: { type: string }
+                tags: { type: string, description: 逗号分隔 }
+                file: { type: string, format: binary }
+      responses:
+        '201': { description: 资产已解析并同步, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/KnowledgeAssetDetail' } } }] } } } }
+  /knowledge-assets/summary:
+    get:
+      tags: [Knowledge]
+      operationId: getKnowledgeAssetSummary
+      responses:
+        '200': { description: 知识资产统计, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/KnowledgeAssetSummary' } } }] } } } }
+  /knowledge-assets/{assetId}:
+    get:
+      tags: [Knowledge]
+      operationId: getKnowledgeAsset
+      parameters: [{ name: assetId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: 资产、页面索引与关联媒体, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResponse' }, { properties: { data: { $ref: '#/components/schemas/KnowledgeAssetDetail' } } }] } } } }
+  /knowledge-assets/{assetId}/sync:
+    post:
+      tags: [Knowledge]
+      operationId: retryKnowledgeAssetSync
+      parameters: [{ name: assetId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: 已重新同步 RAGFlow, content: { application/json: { schema: { $ref: '#/components/schemas/ApiResponse' } } } }
+  /knowledge-assets/{assetId}/pages/{pageNumber}/preview:
+    get:
+      tags: [Knowledge]
+      operationId: getKnowledgeAssetPagePreview
+      parameters:
+        - { name: assetId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: pageNumber, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200': { description: PPT 页面 PNG 预览, content: { image/png: { schema: { type: string, format: binary } } } }
+  /knowledge-assets/media/{mediaId}:
+    get:
+      tags: [Knowledge]
+      operationId: getKnowledgeAssetMedia
+      parameters: [{ name: mediaId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: 提取图片或内嵌视频二进制内容 }
   /model-configs:
     get:
       tags: [Settings]
@@ -419,7 +491,7 @@ components:
     RetrievalHit:
       type: object
       required: [id, knowledgeBaseId, knowledgeBaseName, documentId, documentName, chunkId, content, score, metadata]
-      properties: { id: { type: string }, knowledgeBaseId: { type: string }, knowledgeBaseName: { type: string }, documentId: { type: string }, documentName: { type: string }, chunkId: { type: string }, content: { type: string }, score: { type: number }, pageNumber: { type: integer }, metadata: { type: object, additionalProperties: { type: string } } }
+      properties: { id: { type: string }, knowledgeBaseId: { type: string }, knowledgeBaseName: { type: string }, documentId: { type: string }, documentName: { type: string }, chunkId: { type: string }, content: { type: string }, score: { type: number }, pageNumber: { type: integer }, metadata: { type: object, additionalProperties: { type: string } }, assetContext: { $ref: '#/components/schemas/KnowledgeAssetContext' } }
     GenerateProposalRequest:
       type: object
       required: [retrievalTaskId, templateKnowledgeBaseId, tone, outputFormats]
@@ -436,6 +508,41 @@ components:
       type: object
       required: [id, name, knowledgeType, description, documentCount, chunkCount, embeddingModel, chunkMethod, status, updatedAt]
       properties: { id: { type: string }, name: { type: string }, knowledgeType: { type: string, enum: [PRODUCT_TECH, INDUSTRY_SOLUTION, PROJECT_CASE, TROUBLESHOOTING, TEMPLATE] }, description: { type: string }, documentCount: { type: integer }, chunkCount: { type: integer }, embeddingModel: { type: string }, chunkMethod: { type: string }, status: { type: string, enum: [READY, PARSING, ERROR] }, updatedAt: { type: string, format: date-time } }
+    KnowledgeAssetSummary:
+      type: object
+      properties: { total: { type: integer }, documents: { type: integer }, images: { type: integer }, videos: { type: integer }, pptPages: { type: integer }, ready: { type: integer } }
+    KnowledgeAsset:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        ragflowDatasetId: { type: string }
+        ragflowDocumentId: { type: string }
+        assetType: { type: string, enum: [DOCUMENT, IMAGE, VIDEO] }
+        documentFormat: { type: string }
+        title: { type: string }
+        originalFilename: { type: string }
+        mediaType: { type: string }
+        description: { type: string }
+        industry: { type: string }
+        tags: { type: array, items: { type: string } }
+        status: { type: string, enum: [PROCESSING, READY, ERROR] }
+        statusMessage: { type: string }
+        fileSize: { type: integer, format: int64 }
+        pageCount: { type: integer }
+        extractedImageCount: { type: integer }
+        extractedVideoCount: { type: integer }
+    KnowledgeAssetPage:
+      type: object
+      properties: { id: { type: string, format: uuid }, pageNumber: { type: integer }, title: { type: string }, textContent: { type: string }, imageCount: { type: integer }, videoCount: { type: integer }, previewUrl: { type: string } }
+    KnowledgeAssetMedia:
+      type: object
+      properties: { id: { type: string, format: uuid }, pageNumber: { type: integer }, mediaKind: { type: string, enum: [IMAGE, VIDEO] }, filename: { type: string }, mediaType: { type: string }, fileSize: { type: integer, format: int64 }, sourceKind: { type: string }, externalUrl: { type: string }, contentUrl: { type: string } }
+    KnowledgeAssetDetail:
+      type: object
+      properties: { asset: { $ref: '#/components/schemas/KnowledgeAsset' }, pages: { type: array, items: { $ref: '#/components/schemas/KnowledgeAssetPage' } }, media: { type: array, items: { $ref: '#/components/schemas/KnowledgeAssetMedia' } } }
+    KnowledgeAssetContext:
+      type: object
+      properties: { assetId: { type: string, format: uuid }, assetTitle: { type: string }, assetType: { type: string, enum: [DOCUMENT, IMAGE, VIDEO] }, pptPage: { type: integer }, pageTitle: { type: string }, relatedImages: { type: array, items: { $ref: '#/components/schemas/KnowledgeAssetMedia' } }, relatedVideos: { type: array, items: { $ref: '#/components/schemas/KnowledgeAssetMedia' } } }
     ModelConfig:
       type: object
       required: [provider, displayName, baseUrl, modelName, status]

@@ -33,4 +33,32 @@ public class SolutionGenerationController {
     public ApiResponse<List<SolutionDtos.GenerationRunResponse>> list(@RequestParam(required = false) String projectId) {
         return ApiResponse.ok(service.list(projectId));
     }
+
+    @GetMapping("/solution-sections/{sectionId}")
+    @PreAuthorize("hasAuthority('proposal:view')")
+    public ApiResponse<SolutionDtos.SectionResponse> section(@PathVariable UUID sectionId) {
+        return ApiResponse.ok(service.getSection(sectionId));
+    }
+
+    @PatchMapping("/solution-sections/{sectionId}")
+    @PreAuthorize("hasAuthority('proposal:generate')")
+    public ApiResponse<SolutionDtos.SectionResponse> updateSection(@PathVariable UUID sectionId,
+            @Valid @RequestBody SolutionDtos.UpdateSectionRequest request) {
+        return ApiResponse.ok(service.updateSection(sectionId, request));
+    }
+
+    @PostMapping("/solution-sections/{sectionId}/lock")
+    @PreAuthorize("hasAuthority('proposal:generate')")
+    public ApiResponse<SolutionDtos.SectionResponse> lockSection(@PathVariable UUID sectionId,
+            @Valid @RequestBody SolutionDtos.LockSectionRequest request) {
+        return ApiResponse.ok(service.lockSection(sectionId, request.locked()));
+    }
+
+    @PostMapping("/solution-sections/{sectionId}/regenerate")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    @PreAuthorize("hasAuthority('proposal:generate')")
+    public ApiResponse<SolutionDtos.SectionResponse> regenerateSection(@PathVariable UUID sectionId,
+            @Valid @RequestBody SolutionDtos.RegenerateSectionRequest request) {
+        return ApiResponse.ok(service.regenerateSection(sectionId, request));
+    }
 }

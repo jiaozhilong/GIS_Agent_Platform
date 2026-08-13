@@ -1,44 +1,63 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { IconArrowRight, IconCheck, IconRefresh } from '@tabler/icons-vue'
+import { IconArrowRight, IconCheck, IconExternalLink, IconRefresh, IconSparkles } from '@tabler/icons-vue'
 import AppShell from '@/components/layout/AppShell.vue'
 import ProjectTabs from '@/components/layout/ProjectTabs.vue'
 import ProductGalaxy from '@/components/scene/ProductGalaxy.vue'
 import { api } from '@/api/services'
-import type { ProductMatch } from '@/api/contracts'
+import type { ProductCatalogItem, ProductMatch } from '@/api/contracts'
 
-const route = useRoute(); const matches = ref<ProductMatch[]>([]); const selected = ref<string[]>([]); const loading = ref(false)
-const categories = [
-  { label: '全部产品', keywords: [] },
-  { label: 'GIS平台', keywords: ['GIS', '平台'] },
-  { label: '三维GIS', keywords: ['三维', '3D'] },
-  { label: '空间分析', keywords: ['空间分析', '分析'] },
-  { label: '开发组件', keywords: ['组件', 'SDK'] },
-  { label: '运维管理', keywords: ['运维', '管理'] },
-]
+const route = useRoute()
+const matches = ref<ProductMatch[]>([])
+const catalog = ref<ProductCatalogItem[]>([])
+const selected = ref<string[]>([])
+const selectedProductId = ref('')
+const loading = ref(false)
+const error = ref('')
 const activeCategory = ref('全部产品')
-const filteredMatches = computed(() => {
-  const category = categories.find(item => item.label === activeCategory.value)
-  if (!category || category.keywords.length === 0) return matches.value
-  return matches.value.filter(item => {
-    const searchable = `${item.productName} ${item.productFamily} ${item.matchedCapabilities.join(' ')}`.toLowerCase()
-    return category.keywords.some(keyword => searchable.includes(keyword.toLowerCase()))
-  })
-})
-const run = async () => { loading.value = true; try { matches.value = await api.matchProducts(String(route.params.id)); selected.value = matches.value.filter(x => x.recommended).map(x => x.productId) } finally { loading.value = false } }
-onMounted(run)
+const categories = computed(() => ['全部产品', ...new Set(catalog.value.map(item => item.category))])
+const filteredMatches = computed(() => activeCategory.value === '全部产品' ? matches.value : matches.value.filter(item => item.productFamily === activeCategory.value))
+const selectedCatalog = computed(() => catalog.value.find(item => item.id === selectedProductId.value))
+const matchMap = computed(() => new Map(matches.value.map(item => [item.productId, item])))
+const run = async () => {
+  loading.value = true; error.value = ''
+  try { matches.value = await api.matchProducts(String(route.params.id)); selected.value = matches.value.filter(item => item.recommended).map(item => item.productId); selectedProductId.value = matches.value[0]?.productId || '' }
+  catch (e) { error.value = e instanceof Error ? e.message : '产品匹配失败' }
+  finally { loading.value = false }
+}
+const focusProduct = (product: ProductCatalogItem) => { selectedProductId.value = product.id; activeCategory.value = product.category }
+const toggle = (id: string) => { selectedProductId.value = id; selected.value = selected.value.includes(id) ? selected.value.filter(item => item !== id) : [...selected.value, id] }
+const toggleProduct = (product: ProductCatalogItem) => { activeCategory.value = product.category; toggle(product.id) }
+onMounted(async () => { try { catalog.value = await api.productCatalog(); await run() } catch (e) { error.value = e instanceof Error ? e.message : '产品体系加载失败' } })
 </script>
+
 <template>
-  <AppShell title="产品匹配" subtitle="基于需求图谱匹配 GIS 产品能力组合">
+  <AppShell title="产品 Agent" subtitle="基于项目需求与知识证据，在 SuperMap GIS 2026 产品宇宙中编排能力组合">
     <ProjectTabs />
+    <p v-if="error" class="page-error">{{ error }}</p>
     <div class="match-layout">
-      <aside class="filters tech-panel"><div class="panel-title"><span>产品分类</span><button :disabled="loading" title="重新执行产品匹配" @click="run"><IconRefresh :size="15" /></button></div><button v-for="category in categories" :key="category.label" :class="{ active: activeCategory === category.label }" @click="activeCategory = category.label">{{ category.label }}</button><label title="当前产品知识数据尚未包含部署方式字段">部署方式<select class="tech-select" disabled><option>待产品数据完善</option></select></label><label title="当前产品知识数据尚未包含版本字段">产品版本<select class="tech-select" disabled><option>待产品数据完善</option></select></label><label title="当前产品知识数据尚未包含价格字段">价格区间<select class="tech-select" disabled><option>待产品数据完善</option></select></label><small class="filter-note">版本、部署和价格筛选需先补充产品主数据。</small><button class="secondary-button" :disabled="loading" @click="run">{{ loading ? '正在匹配...' : '重新匹配' }}</button></aside>
-      <section class="galaxy-panel tech-panel"><div class="panel-title"><span>3D 产品能力地图</span><span class="tag">需求驱动匹配</span></div><ProductGalaxy /></section>
-      <aside class="match-result tech-panel"><div class="panel-title"><span>匹配质量</span><strong class="score">92%</strong></div><div class="quality"><span>功能匹配度</span><div class="progress-track"><div class="progress-value" style="width:96%" /></div><em>96%</em><span>部署匹配度</span><div class="progress-track"><div class="progress-value" style="width:90%" /></div><em>90%</em><span>成本匹配度</span><div class="progress-track"><div class="progress-value" style="width:89%" /></div><em>89%</em></div><h3>配置评估</h3><div v-for="item in filteredMatches" :key="item.productId" :class="['product-row',{selected:selected.includes(item.productId)}]" @click="selected.includes(item.productId)?selected=selected.filter(x=>x!==item.productId):selected.push(item.productId)"><span class="check"><IconCheck v-if="selected.includes(item.productId)" :size="13" /></span><p><b>{{ item.productName }}</b><small>{{ item.productFamily }} · {{ item.matchedCapabilities.join(' / ') }}</small></p><strong>{{ item.matchScore }}%</strong></div><p v-if="!loading && filteredMatches.length === 0" class="empty-result">该分类暂无匹配产品</p><RouterLink :to="`/projects/${route.params.id}/retrieval`" class="primary-button">确认产品组合 <IconArrowRight :size="16" /></RouterLink></aside>
+      <aside class="filters tech-panel">
+        <div class="agent-badge"><span><IconSparkles :size="17"/></span><div><b>Product Agent</b><small>{{ loading ? '正在推理产品组合' : `已分析 ${catalog.length} 个产品节点` }}</small></div></div>
+        <div class="panel-title"><span>产品体系</span><button :disabled="loading" title="重新匹配" @click="run"><IconRefresh :size="15"/></button></div>
+        <button v-for="category in categories" :key="category" :class="{active:activeCategory===category}" @click="activeCategory=category"><span>{{ category }}</span><em>{{ category==='全部产品'?catalog.length:catalog.filter(item=>item.category===category).length }}</em></button>
+        <div class="match-summary"><span>需求命中</span><b>{{ matches.length }}</b><span>推荐组合</span><b>{{ selected.length }}</b></div>
+        <button class="secondary-button" :disabled="loading" @click="run">{{ loading ? 'Agent 运行中...' : '重新运行产品 Agent' }}</button>
+      </aside>
+
+      <section class="galaxy-panel tech-panel"><div class="panel-title"><span>SuperMap GIS 2026 产品能力宇宙</span><span class="tag">点击节点加入/移出推荐组合</span></div><ProductGalaxy :catalog="catalog" :matches="matches" :selected-product-id="selectedProductId" :selected-product-ids="selected" @select="focusProduct" @toggle="toggleProduct"/></section>
+
+      <aside class="match-result tech-panel">
+        <div class="panel-title"><span>Agent 推荐组合</span><strong class="score">{{ matches.length }} 项</strong></div>
+        <div v-if="selectedCatalog" class="selected-product"><span>{{ selectedCatalog.category }}</span><b>{{ selectedCatalog.name }}</b><p>{{ selectedCatalog.description }}</p><a :href="selectedCatalog.officialUrl" target="_blank">查看官方 2026 产品体系 <IconExternalLink :size="12"/></a></div>
+        <div class="result-list"><button v-for="item in filteredMatches" :key="item.productId" :class="['product-row',{selected:selected.includes(item.productId),focused:selectedProductId===item.productId}]" @click="toggle(item.productId)"><span class="check"><IconCheck v-if="selected.includes(item.productId)" :size="13"/></span><p><b>{{ item.productName }}</b><small>{{ item.productFamily }} · {{ item.matchedCapabilities.join(' / ') }}</small></p><strong>{{ item.matchScore }}%</strong></button><p v-if="!loading&&!filteredMatches.length" class="empty-result">该产品域未被当前需求命中；可在能力图中查看完整产品。</p></div>
+        <div class="selection"><span>已选 {{ selected.length }} 个产品</span><div><i v-for="id in selected" :key="id" :title="catalog.find(item=>item.id===id)?.name"/></div></div>
+        <RouterLink :to="`/projects/${route.params.id}/retrieval`" class="primary-button">确认组合并检索证据 <IconArrowRight :size="16"/></RouterLink>
+      </aside>
     </div>
   </AppShell>
 </template>
+
 <style scoped>
-.match-layout{display:grid;grid-template-columns:190px minmax(460px,1fr)270px;gap:10px;min-height:calc(100vh - 152px)}.filters,.galaxy-panel,.match-result{padding:14px}.filters{display:flex;flex-direction:column;gap:7px}.filters>.panel-title{margin-bottom:4px}.filters>.panel-title button{background:none;border:0;color:var(--text-3)}.filters>.panel-title button:disabled{opacity:.45}.filters>button:not(.secondary-button){height:34px;text-align:left;padding:0 10px;border:1px solid transparent;background:transparent;color:var(--text-2);border-radius:5px}.filters>button.active{background:rgba(25,134,255,.2);border-color:var(--line);color:var(--primary-2)}.filters label{display:grid;gap:6px;color:var(--text-3);font-size:11px;margin-top:5px}.filters select:disabled{opacity:.55;cursor:not-allowed}.filter-note{color:var(--text-3);font-size:9px;line-height:1.5}.filters .secondary-button{margin-top:auto}.galaxy-panel{display:grid;grid-template-rows:28px 1fr;min-height:0;overflow:hidden}.match-result{display:flex;flex-direction:column;gap:12px;overflow:auto}.quality{display:grid;grid-template-columns:72px 1fr 34px;align-items:center;gap:10px 7px;font-size:10px;color:var(--text-2)}.quality em{font-style:normal;color:var(--text-3)}.match-result h3{font-size:12px;margin:6px 0 0;border-top:1px solid var(--line);padding-top:13px}.product-row{display:grid;grid-template-columns:20px 1fr 38px;align-items:center;gap:7px;border:1px solid var(--line);border-radius:6px;padding:9px;background:rgba(8,29,44,.35)}.product-row.selected{border-color:rgba(34,150,237,.45);background:rgba(25,134,255,.1)}.check{width:16px;height:16px;border:1px solid var(--line-strong);border-radius:3px;display:grid;place-items:center;color:var(--cyan)}.product-row p{display:grid;margin:0;gap:4px}.product-row b{font-size:11px}.product-row small{font-size:9px;color:var(--text-3);line-height:1.4}.product-row strong{font-size:11px;color:var(--success)}.empty-result{color:var(--text-3);font-size:11px;text-align:center}.match-result>.primary-button{margin-top:auto}@media(max-width:1150px){.match-layout{grid-template-columns:170px 1fr}.match-result{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr}.match-result>.primary-button{grid-column:2}}
+.match-layout{display:grid;grid-template-columns:205px minmax(640px,1fr)310px;gap:10px;min-height:calc(100vh - 158px)}.filters,.galaxy-panel,.match-result{padding:13px}.filters{display:flex;flex-direction:column;gap:6px}.agent-badge{display:flex;align-items:center;gap:9px;padding:10px;margin-bottom:6px;border:1px solid rgba(39,190,231,.2);border-radius:8px;background:rgba(17,107,166,.08)}.agent-badge>span{width:31px;height:31px;display:grid;place-items:center;border-radius:9px;color:var(--cyan);background:rgba(23,160,215,.13)}.agent-badge>div{display:grid;gap:4px}.agent-badge small{color:var(--text-3);font-size:8px}.filters>.panel-title{margin:6px 0}.filters>.panel-title button{border:0;background:transparent;color:var(--text-3)}.filters>button:not(.secondary-button){min-height:33px;padding:0 9px;display:flex;justify-content:space-between;align-items:center;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--text-2);font-size:10px}.filters>button em{font-style:normal;color:var(--text-3)}.filters>button.active{background:rgba(25,134,255,.14);border-color:var(--line);color:var(--primary-2)}.match-summary{margin-top:8px;padding:10px;display:grid;grid-template-columns:1fr auto;gap:8px;border:1px solid var(--line);border-radius:7px;color:var(--text-3);font-size:9px}.match-summary b{color:var(--text-1)}.filters .secondary-button{margin-top:auto;padding:0 8px;font-size:10px}.galaxy-panel{display:grid;grid-template-rows:30px 1fr;min-height:0;overflow:hidden}.match-result{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden}.selected-product{padding:11px;border:1px solid rgba(39,171,224,.22);border-radius:7px;background:rgba(18,94,145,.08)}.selected-product>span{color:var(--cyan);font-size:8px;letter-spacing:1px}.selected-product>b{display:block;margin:5px 0;font-size:11px}.selected-product p{margin:0;color:var(--text-3);font-size:9px;line-height:1.5}.selected-product a{margin-top:7px;display:flex;align-items:center;gap:4px;color:var(--primary-2);font-size:8px}.result-list{flex:1;overflow:auto;display:grid;align-content:start;gap:6px}.product-row{width:100%;display:grid;grid-template-columns:20px 1fr 38px;align-items:center;gap:7px;border:1px solid var(--line);border-radius:7px;padding:9px;background:rgba(8,29,44,.35);color:var(--text-1);text-align:left}.product-row.selected{border-color:rgba(44,230,160,.35);background:rgba(23,147,106,.08)}.product-row.focused{box-shadow:inset 2px 0 var(--cyan)}.check{width:16px;height:16px;border:1px solid var(--line-strong);border-radius:4px;display:grid;place-items:center;color:var(--success)}.product-row p{display:grid;margin:0;gap:4px}.product-row b{font-size:10px}.product-row small{font-size:8px;color:var(--text-3);line-height:1.4}.product-row strong{font-size:10px;color:var(--success)}.empty-result{color:var(--text-3);font-size:10px;text-align:center;line-height:1.6}.selection{display:flex;justify-content:space-between;align-items:center;color:var(--text-3);font-size:9px}.selection>div{display:flex;gap:3px}.selection i{width:6px;height:6px;border-radius:50%;background:var(--success);box-shadow:0 0 6px rgba(44,230,160,.5)}.match-result>.primary-button{width:100%;font-size:10px}.page-error{padding:9px 12px;color:var(--danger);border:1px solid rgba(255,90,110,.25)}@media(max-width:1250px){.match-layout{grid-template-columns:185px 1fr}.match-result{grid-column:1/-1;max-height:420px}}@media(max-width:820px){.match-layout{grid-template-columns:1fr}}
 </style>
