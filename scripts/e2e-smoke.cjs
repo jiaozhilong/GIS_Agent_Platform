@@ -1,0 +1,165 @@
+const { chromium } = require('C:\\Users\\焦志龙\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\node_modules\\playwright')
+const fs = require('node:fs')
+const path = require('node:path')
+
+const webBase = process.env.GIS_AGENT_WEB_BASE || 'http://127.0.0.1:5174'
+const adminPassword = process.env.GIS_AGENT_E2E_PASSWORD
+
+async function main() {
+  if (!adminPassword) throw new Error('GIS_AGENT_E2E_PASSWORD must be set for authenticated smoke tests')
+  const outputDir = path.join(process.cwd(), 'test-artifacts')
+  fs.mkdirSync(outputDir, { recursive: true })
+  const browser = await chromium.launch({ headless: true, executablePath: 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe' })
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+  const errors = []
+  const checks = []
+  page.on('console', message => { if (message.type() === 'error') errors.push(`console: ${message.text()}`) })
+  page.on('pageerror', error => errors.push(`pageerror: ${error.message}`))
+  page.on('response', response => { if (response.status() >= 400) errors.push(`http ${response.status()}: ${response.url()}`) })
+
+  const visit = async (route, selector) => {
+    await page.goto(`${webBase}${route}`, { waitUntil: 'domcontentloaded' })
+    if (selector) await page.waitForSelector(selector, { timeout: 30000 })
+    await page.waitForTimeout(400)
+    checks.push(route)
+  }
+
+  await visit('/login', '.login-card')
+  await page.locator('input[autocomplete="current-password"]').fill(adminPassword)
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await page.waitForURL('**/dashboard', { timeout: 30000 })
+  await page.waitForSelector('.dashboard-grid')
+  checks.push('/dashboard')
+  if (await page.locator('.sidebar .nav-item').count() !== 8) throw new Error('Sidebar does not contain the consolidated 8 primary entries')
+  if (await page.locator('.sidebar .nav-item', { hasText: '需求分析' }).count()) throw new Error('Project workflow duplicated in sidebar')
+  await page.waitForSelector('.project-signal')
+  await page.locator('.project-signal').first().click()
+  await page.waitForSelector('.project-inspector')
+  await page.screenshot({ path: path.join(outputDir, 'agent-dashboard.png'), fullPage: false })
+  checks.push('interactive-agent-project-network')
+
+  await visit('/projects', '.project-table')
+  const firstProjectLink = await page.locator('.table-row').first().locator('.project-name').getAttribute('href')
+  if (!firstProjectLink) throw new Error('No project link found')
+  const projectId = firstProjectLink.split('/')[2]
+
+  await page.getByRole('button', { name: /新建项目/ }).click()
+  await page.waitForSelector('.modal-backdrop')
+  await page.locator('.modal-backdrop').click({ position: { x: 5, y: 5 } })
+  if (!(await page.locator('.project-dialog').isVisible())) throw new Error('Project dialog closed after backdrop click')
+  await page.locator('.project-dialog header button').click()
+  checks.push('project-dialog-backdrop-lock')
+  await page.locator('.table-row').first().getByTitle('编辑项目').click()
+  await page.waitForSelector('.project-dialog')
+  await page.locator('.project-dialog header button').click()
+  checks.push('project-edit-dialog')
+
+  await visit(`/projects/${projectId}`, '.war-room')
+  const layerButton = page.getByTitle('隐藏业务图层')
+  await layerButton.click()
+  await page.getByTitle('显示业务图层').waitFor()
+  await page.getByTitle('显示业务图层').click()
+  await page.getByTitle('复位三维场景').click()
+  checks.push('project-scene-controls')
+  await visit(`/projects/${projectId}/requirements`, '.analysis-grid')
+  await page.getByRole('button', { name: /运行需求分析Agent/ }).click()
+  await page.waitForFunction(() => document.body.textContent.includes('需求要点') && document.querySelectorAll('.demand-points li').length > 0, null, { timeout: 30000 })
+  checks.push('requirement-analysis-run')
+
+  await visit(`/projects/${projectId}/products`, '.match-layout')
+  await page.waitForFunction(() => document.querySelectorAll('.product-row').length >= 1, null, { timeout: 30000 })
+  await page.waitForFunction(() => document.querySelectorAll('.product-node').length === 22, null, { timeout: 30000 })
+  if (await page.locator('.product-node.matched').count() < 1) throw new Error('No matched product highlighted in catalog')
+  if (await page.locator('.product-node.chosen').count() !== await page.locator('.product-row.selected').count()) throw new Error('Product graph and recommendation selection are out of sync')
+  const graphProduct = page.locator('.product-node.matched').first()
+  const graphProductName = (await graphProduct.locator('span').textContent() || '').trim()
+  await graphProduct.click()
+  const linkedRow = page.locator('.product-row', { hasText: graphProductName }).first()
+  await linkedRow.waitFor()
+  if ((await graphProduct.getAttribute('class')).includes('chosen') !== (await linkedRow.getAttribute('class')).includes('selected')) throw new Error('Graph click did not update recommendation checkbox')
+  await linkedRow.click()
+  if ((await graphProduct.getAttribute('class')).includes('chosen') !== (await linkedRow.getAttribute('class')).includes('selected')) throw new Error('Recommendation checkbox did not update graph selection')
+  await graphProduct.hover()
+  const stageBox = await page.locator('.universe-stage').boundingBox()
+  const detailBox = await page.locator('.product-detail').boundingBox()
+  if (!stageBox || !detailBox || detailBox.y < stageBox.y + stageBox.height - 1) throw new Error('Product detail panel overlaps product universe')
+  await page.getByRole('button', { name: /云 GIS 服务器/ }).first().click()
+  await page.screenshot({ path: path.join(outputDir, 'supermap-product-universe.png'), fullPage: false })
+  checks.push('product-match-run')
+  checks.push('supermap-2026-product-interaction')
+
+  await visit(`/projects/${projectId}/retrieval`, '.retrieval-layout')
+  await page.getByRole('button', { name: /开始检索/ }).click()
+  await page.waitForFunction(() => document.querySelectorAll('.evidence article').length >= 1, null, { timeout: 60000 })
+  checks.push('ragflow-retrieval-run')
+
+  await visit(`/projects/${projectId}/proposal`, '.proposal-layout')
+  checks.push('solution-result-view')
+  await visit('/knowledge', '.kb-layout')
+  await page.getByRole('button', { name: /同步 RAGFlow/ }).click()
+  await page.waitForFunction(() => document.body.textContent.includes('已同步'), null, { timeout: 30000 })
+  checks.push('knowledge-sync')
+
+  await visit('/search', '.search-workspace')
+  await page.locator('.command-search input').fill('SuperMap iServer 2026 云原生部署能力')
+  await page.locator('.command-search button').click()
+  await page.waitForFunction(() => document.querySelectorAll('.hit-card').length >= 1, null, { timeout: 60000 })
+  checks.push('global-knowledge-search')
+
+  await visit('/assets', '.asset-workspace')
+  if (!await page.locator('.boundary').getByText('不接收三维模型、GIS 数据、CAD、遥感影像').count()) throw new Error('Knowledge asset boundary is not explicit')
+  await page.screenshot({ path: path.join(outputDir, 'knowledge-asset-center.png'), fullPage: false })
+  await page.getByRole('button', { name: /注入知识资产/ }).click()
+  await page.waitForSelector('.upload-dialog')
+  await page.locator('.dialog-mask').click({ position: { x: 5, y: 5 } })
+  if (!(await page.locator('.upload-dialog').isVisible())) throw new Error('Knowledge asset dialog closed after backdrop click')
+  await page.locator('.upload-dialog header button').click()
+  checks.push('gis-knowledge-asset-center')
+  checks.push('knowledge-asset-dialog-backdrop-lock')
+
+  await visit('/generations', '.record-table')
+  await visit('/settings/models', '.routing-hero')
+  await page.waitForSelector('.platform-card')
+  await page.screenshot({ path: path.join(outputDir, 'model-routing.png'), fullPage: false })
+  await page.getByRole('button', { name: /测试连接/ }).first().click()
+  await page.waitForTimeout(800)
+  checks.push('model-connection-test')
+  const platformCard = page.locator('.platform-card')
+  if (!await platformCard.locator('.platform-form input').nth(0).inputValue() || !await platformCard.locator('.platform-form input').nth(1).inputValue()) throw new Error('Saved platform model parameters were not loaded')
+  if ((await platformCard.textContent()).includes('请重新输入并保存')) {
+    checks.push('platform-model-reconfigure-required')
+  } else {
+    await page.getByRole('button', { name: '测试当前参数' }).click()
+    await page.waitForFunction(() => document.querySelector('.platform-card')?.textContent?.includes('HEALTHY'), null, { timeout: 240000 })
+    checks.push('platform-model-draft-test')
+    await page.getByRole('button', { name: '保存并应用' }).click()
+    await page.waitForFunction(() => document.body.textContent?.includes('配置已保存'), null, { timeout: 240000 })
+    checks.push('platform-model-save-reload')
+  }
+
+  await visit('/settings/users', '.user-page')
+  await page.getByRole('button', { name: /新增用户/ }).click()
+  await page.waitForSelector('.dialog-mask')
+  await page.locator('.dialog-mask').click({ position: { x: 5, y: 5 } })
+  if (!(await page.locator('.dialog').isVisible())) throw new Error('User dialog closed after backdrop click')
+  await page.locator('.dialog header button').click()
+  checks.push('user-dialog-backdrop-lock')
+
+  await page.screenshot({ path: path.join(outputDir, 'full-function-smoke.png'), fullPage: false })
+  await page.evaluate(() => {
+    localStorage.setItem('gis-agent-token', 'expired-token-for-e2e')
+    localStorage.setItem('gis-agent-user', '{}')
+  })
+  await page.goto(`${baseUrl}/assets`)
+  await page.waitForURL(/\/login\?reason=expired/, { timeout: 30000 })
+  if (!await page.getByText('登录状态已失效，请重新登录后继续操作').count()) throw new Error('Expired session notice was not shown')
+  checks.push('expired-session-redirect')
+
+  const result = { projectId, checks, errors }
+  fs.writeFileSync(path.join(outputDir, 'e2e-smoke-result.json'), JSON.stringify(result, null, 2))
+  console.log(JSON.stringify(result, null, 2))
+  await browser.close()
+  if (errors.length) process.exitCode = 2
+}
+
+main().catch(error => { console.error(error); process.exitCode = 1 })

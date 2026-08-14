@@ -16,6 +16,11 @@ public class AuthController {
         return ApiResponse.ok(authService.login(request));
     }
 
+    @PostMapping("/register")
+    public ApiResponse<AuthDtos.LoginResult> register(@Valid @RequestBody AuthDtos.RegisterRequest request) {
+        return ApiResponse.ok(authService.register(request));
+    }
+
     @GetMapping("/me")
     public ApiResponse<AuthDtos.UserProfile> me(Authentication authentication) {
         return ApiResponse.ok(authService.me(authentication.getName()));

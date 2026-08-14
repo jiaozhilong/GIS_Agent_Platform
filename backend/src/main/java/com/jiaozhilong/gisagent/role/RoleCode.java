@@ -1,3 +1,3 @@
 package com.jiaozhilong.gisagent.role;
 
-public enum RoleCode { ADMIN, CONSULTANT, REVIEWER }
+public enum RoleCode { ADMIN, CONSULTANT, REVIEWER, USER }

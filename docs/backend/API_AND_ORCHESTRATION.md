@@ -89,6 +89,43 @@ RAGFlow v0.26.4 适配层统一封装在 `RagflowGateway`，避免业务代码�
 | GET/PUT | `/model-configs` | RAGFlow、DeepSeek、BGE-M3 配置 |
 | POST | `/model-configs/{provider}/test` | 连通性测试 |
 
+### GIS 行业知识资产中心
+
+知识资产中心是 RAGFlow 上层的业务资产化入口，不承担 GIS 数据、CAD、遥感影像或三维模型管理。原始文件、媒体和预览写入现有 MinIO 的三个平台独立逻辑 bucket，本地目录作为兼容缓存；检索文本和切片写入 RAGFlow，页面与媒体关系、对象键保存在 PostgreSQL。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET/POST | `/knowledge-assets` | 查询或注入 PDF、Word、PPT/PPTX、Excel、图片和视频资产 |
+| GET | `/knowledge-assets/summary` | 文档、图片、视频、PPT 页面及可用资产统计 |
+| GET | `/knowledge-assets/{id}` | 资产详情、PPT 页面索引及关联媒体 |
+| DELETE | `/knowledge-assets/{id}` | 删除平台资产和对应 RAGFlow 文档（处理中禁止删除） |
+| POST | `/knowledge-assets/{id}/sync` | 重新同步 RAGFlow |
+| POST | `/knowledge-assets/{id}/reparse` | 自动路由或管理员指定 Parser 后异步重解析 |
+| GET | `/knowledge-assets/{id}/parse-status` | 查询解析阶段、进度和失败原因 |
+| GET | `/knowledge-assets/{id}/download` | 下载原始业务资产 |
+| GET | `/knowledge-assets/{id}/pages/{page}/preview` | 获取 PPT 页面预览 |
+| GET | `/knowledge-assets/media/{mediaId}` | 获取提取图片或内嵌视频 |
+| POST | `/knowledge-search` | 跨项目知识检索，返回文本、PPT 页面来源及关联图片/视频 |
+
+PPTX 采用增强链路：逐页抽取文本、图片、视频关系和页面预览；原始 PPTX 上传 RAGFlow，并在文档级强制使用 `presentation`。普通 PDF、DOCX、Excel、TXT 和 Markdown 由平台文档级 Parser Router 决策，不再受 Dataset 单一默认解析方式限制；旧版 `.ppt` 明确拒绝并提示转为 `.pptx`。
+
+### Retrieval Evaluation
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/retrieval-evaluations/cases` | 30 条 GIS 售前评测题及 gold label |
+| POST | `/retrieval-evaluations/runs` | 异步执行真实 RAGFlow 检索评测 |
+| GET | `/retrieval-evaluations/runs` | 最近评测运行与指标 |
+| GET | `/retrieval-evaluations/runs/{id}` | 逐题命中排名和错误详情 |
+
+### 章节工作台
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET/PATCH | `/solution-sections/{sectionId}` | 读取或保存章节正文 |
+| POST | `/solution-sections/{sectionId}/lock` | 锁定/解锁章节 |
+| POST | `/solution-sections/{sectionId}/regenerate` | 使用同一 Evidence 流程异步重生成单章 |
+
 ## 5. 首批后端开发范围
 
 本阶段实际实现：健康检查、JWT 登录、当前用户、用户分页与增改、状态、角色分配、密码重置、角色和权限查询、数据库迁移、初始化管理员，以及 RAGFlow 联合生成任务的数据模型和适配器接口。项目和 AI 业务接口按同一契约继续实现。

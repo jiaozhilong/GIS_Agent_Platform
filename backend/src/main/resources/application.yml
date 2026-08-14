@@ -3,6 +3,8 @@ server:
   shutdown: graceful
 
 spring:
+  config:
+    import: optional:file:E:/RAGFlow/ragflow/docker/.env[.properties]
   application:
     name: gis-agent-platform-backend
   datasource:
@@ -28,6 +30,10 @@ spring:
   jackson:
     default-property-inclusion: non_null
     time-zone: Asia/Shanghai
+  servlet:
+    multipart:
+      max-file-size: ${GIS_ASSET_MAX_FILE_SIZE:5GB}
+      max-request-size: ${GIS_ASSET_MAX_REQUEST_SIZE:5200MB}
 
 management:
   endpoints:
@@ -37,19 +43,55 @@ management:
 
 security:
   jwt:
+    # Configure a stable secret through the environment in deployed environments.
+    # When omitted, JwtService creates an ephemeral in-memory key for local development.
     secret: ${GIS_AGENT_JWT_SECRET:}
-    expiration-seconds: ${GIS_AGENT_JWT_EXPIRATION:7200}
+    expiration-seconds: ${GIS_AGENT_JWT_EXPIRATION:28800}
 
 integration:
   ragflow:
     base-url: ${RAGFLOW_BASE_URL:http://localhost:9380}
     api-key: ${RAGFLOW_API_KEY:}
     default-assistant-id: ${RAGFLOW_ASSISTANT_ID:}
-    timeout-seconds: ${RAGFLOW_TIMEOUT_SECONDS:180}
+    # Covers large local PPTX streaming uploads; parse completion is polled separately by the asset worker.
+    timeout-seconds: ${RAGFLOW_TIMEOUT_SECONDS:3600}
+  embedding:
+    base-url: ${BGE_M3_BASE_URL:http://localhost:8001/v1}
 
 platform:
-  bootstrap:
-    admin-password: ${GIS_AGENT_ADMIN_PASSWORD:}
+  assets:
+    storage-path: ${GIS_ASSET_STORAGE_PATH:E:/RAGFlow/GIS_Agent_Platform/data/knowledge-assets}
+    max-file-size-mb: ${GIS_ASSET_MAX_FILE_SIZE_MB:5120}
+    worker-core-size: ${GIS_ASSET_WORKER_CORE_SIZE:1}
+    worker-max-size: ${GIS_ASSET_WORKER_MAX_SIZE:2}
+    worker-queue-capacity: ${GIS_ASSET_WORKER_QUEUE_CAPACITY:20}
+    pptx:
+      # Large media-heavy decks are read directly from OOXML entries to avoid loading embedded videos into the JVM heap.
+      streaming-threshold-mb: ${GIS_PPTX_STREAMING_THRESHOLD_MB:128}
+    object-storage:
+      enabled: ${GIS_MINIO_ENABLED:true}
+      endpoint: ${GIS_MINIO_ENDPOINT:http://localhost:${MINIO_PORT:19000}}
+      access-key: ${GIS_MINIO_ACCESS_KEY:${MINIO_USER:}}
+      secret-key: ${GIS_MINIO_SECRET_KEY:${MINIO_PASSWORD:}}
+      original-bucket: gis-knowledge-original
+      media-bucket: gis-knowledge-media
+      preview-bucket: gis-knowledge-preview
+  knowledge:
+    parser:
+      docx-manual-enabled: ${GIS_DOCX_MANUAL_ENABLED:false}
+      pdf-manual-enabled: ${GIS_PDF_MANUAL_ENABLED:false}
+    retrieval:
+      candidate-top-k: ${GIS_RETRIEVAL_CANDIDATE_TOP_K:40}
+      final-top-k: ${GIS_RETRIEVAL_FINAL_TOP_K:10}
+      similarity-threshold: ${GIS_RETRIEVAL_SIMILARITY_THRESHOLD:0.2}
+      vector-weight: ${GIS_RETRIEVAL_VECTOR_WEIGHT:0.3}
+      keyword-enabled: ${GIS_RETRIEVAL_KEYWORD_ENABLED:true}
+      rerank-enabled: ${GIS_RETRIEVAL_RERANK_ENABLED:true}
+  llm:
+    base-url: ${PLATFORM_LLM_BASE_URL:}
+    model-name: ${PLATFORM_LLM_MODEL_NAME:}
+    api-key: ${PLATFORM_LLM_API_KEY:}
+    enabled: ${PLATFORM_LLM_ENABLED:false}
 
 logging:
   level:

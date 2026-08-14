@@ -6,7 +6,7 @@ settings:
 
 importers:
 
-  .:
+  frontend:
     dependencies:
       '@tabler/icons-vue':
         specifier: ^3.34.1

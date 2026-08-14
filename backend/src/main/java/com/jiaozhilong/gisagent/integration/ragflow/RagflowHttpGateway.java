@@ -74,8 +74,17 @@ public class RagflowHttpGateway implements RagflowGateway {
     }
 
     private String text(JsonNode node, String field, String fallback) { JsonNode value = node.path(field); return value.isMissingNode() || value.isNull() ? fallback : value.asText(fallback); }
-    private Double number(JsonNode node, String field, Double fallback) { JsonNode value = node.path(field); return value.isNumber() ? value.asDouble() : fallback; }
-    private Integer integer(JsonNode node, String field, Integer fallback) { JsonNode value = node.path(field); return value.isNumber() ? value.asInt() : fallback; }
+    private Double number(JsonNode node, String field, Double fallback) {
+        JsonNode value = node.path(field);
+        if (!value.isNumber()) return fallback;
+        return Double.valueOf(value.asDouble());
+    }
+
+    private Integer integer(JsonNode node, String field, Integer fallback) {
+        JsonNode value = node.path(field);
+        if (!value.isNumber()) return fallback;
+        return Integer.valueOf(value.asInt());
+    }
     private boolean hasText(String value) { return value != null && !value.isBlank(); }
     private BusinessException upstream(String message, Exception cause) {
         BusinessException exception = new BusinessException(HttpStatus.BAD_GATEWAY, "UPSTREAM_ERROR", message);

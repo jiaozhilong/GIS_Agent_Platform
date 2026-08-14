@@ -19,12 +19,23 @@ public class SolutionCitationEntity {
     @Column(name = "content_snapshot", columnDefinition = "text") private String contentSnapshot;
     @Column(name = "similarity_score", precision = 8, scale = 6) private BigDecimal similarityScore;
     @Column(name = "page_number") private Integer pageNumber;
+    @Column(name = "asset_id") private UUID assetId;
+    @Column(name = "slide_number") private Integer slideNumber;
+    @Column(name = "evidence_id", length = 100) private String evidenceId;
     @JdbcTypeCode(SqlTypes.JSON) @Column(name = "metadata_json", nullable = false, columnDefinition = "jsonb") private String metadataJson = "{}";
     @Column(name = "created_at", nullable = false) private OffsetDateTime createdAt;
     @PrePersist void create() { createdAt = OffsetDateTime.now(); }
     public UUID getId() { return id; }
     public String getRagflowChunkId() { return ragflowChunkId; }
     public String getDocumentName() { return documentName; }
+    public String getDatasetId() { return datasetId; }
+    public String getDocumentId() { return documentId; }
+    public String getContentSnapshot() { return contentSnapshot; }
+    public BigDecimal getSimilarityScore() { return similarityScore; }
+    public Integer getPageNumber() { return pageNumber; }
+    public UUID getAssetId() { return assetId; }
+    public Integer getSlideNumber() { return slideNumber; }
+    public String getEvidenceId() { return evidenceId; }
     public void setSection(SolutionSectionEntity value) { section = value; }
     public void setRagflowChunkId(String value) { ragflowChunkId = value; }
     public void setDatasetId(String value) { datasetId = value; }
@@ -34,4 +45,7 @@ public class SolutionCitationEntity {
     public void setSimilarityScore(BigDecimal value) { similarityScore = value; }
     public void setPageNumber(Integer value) { pageNumber = value; }
     public void setMetadataJson(String value) { metadataJson = value; }
+    public void setAssetId(UUID value) { assetId = value; }
+    public void setSlideNumber(Integer value) { slideNumber = value; }
+    public void setEvidenceId(String value) { evidenceId = value; }
 }
